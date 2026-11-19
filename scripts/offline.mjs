@@ -8,7 +8,8 @@ const assetPaths = (await readdir(new URL('assets/',dist), {withFileTypes:true})
 const html = await readFile(new URL('index.html',dist),'utf8')
 const entries = [...html.matchAll(/\b(?:src|href)=["'](\/assets\/[^"']+)["']/g)].map(m=>m[1])
 if(!entries.length || entries.some(p=>!assetPaths.includes(p)))throw Error('Production reader entry point missing')
-const files = await Promise.all(assetPaths.map(async path => [
+const shellFiles = [...assetPaths, '/favicon.svg']
+const files = await Promise.all(shellFiles.map(async path => [
   path, 'sha256-'+createHash('sha256').update(await readFile(new URL(path.slice(1),dist))).digest('base64')
 ]))
 const version = createHash('sha256').update(html).update(JSON.stringify(files)).digest('hex').slice(0,16)
@@ -55,7 +56,7 @@ function installReader(version, entries, assets) {
       })())
       return
     }
-    if(!/^\/assets\/[\w.-]+$/.test(url.pathname))return
+    if(url.pathname!=='/favicon.svg' && !/^\/assets\/[\w.-]+$/.test(url.pathname))return
     event.respondWith((async()=>{
       const cache=await caches.open(name)
       // Bytes were verified against the release manifest. Static hashed files do not vary by request Origin.

@@ -321,6 +321,9 @@ test("reopens the static reader offline with the last public briefing", async ({
   await page.unrouteAll({ behavior: "wait" });
   await context.setOffline(true);
   await page.reload();
+  await expect.poll(() => page.locator(".masthead .brand-mark img").evaluate(
+    (img: HTMLImageElement) => img.naturalWidth,
+  )).toBeGreaterThan(0);
   await expect(
     page.getByRole("heading", { name: "Command center", level: 1 }),
   ).toBeVisible();
