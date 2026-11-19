@@ -385,6 +385,15 @@ export function ArticleDetail({
         <div>
           <section className="panel section-pad">
             <h2>Sources &amp; evidence</h2>
+            {e.editorialType === "correction" && e.supersedes && sourceURL(e.supersedes.url) && (
+              <a className="source-link" href={sourceURL(e.supersedes.url)} target="_blank" rel="noreferrer">
+                <span>
+                  <small>Report being corrected</small>
+                  {e.supersedes.name}
+                </span>
+                <ArrowUpRight size={16} />
+              </a>
+            )}
             {sources.length ? (
               sources.map((s, i) => (
                 <a

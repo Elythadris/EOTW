@@ -48,6 +48,7 @@ import {
   activePriority,
   dateTime,
   relative,
+  type EditorialType,
   type IntelEvent,
   type Page,
   type Scope,
@@ -109,6 +110,23 @@ const headings: Record<string, [string, string]> = {
     "See when each provider last delivered a successful response.",
   ],
 };
+const archiveTypes: [EditorialType | "all", string][] = [
+  ["all", "All records"],
+  ["original", "Original reporting"],
+  ["investigation", "Investigations"],
+  ["prediction", "Predictions"],
+  ["correction", "Corrections"],
+];
+
+function archivePath(q: string, type: EditorialType | "all", scope: Scope) {
+  const params = new URLSearchParams();
+  if (q) params.set("q", q);
+  if (type !== "all") params.set("type", type);
+  if (scope !== "all") params.set("scope", scope);
+  const search = params.toString();
+  return "/archive" + (search ? "?" + search : "");
+}
+
 function route() {
   const url = new URL(window.location.href);
   const path = url.pathname.replace(/\/+$/, "") || "/";
@@ -121,7 +139,20 @@ function route() {
   } catch {
     /* Invalid links get the unavailable story state. */
   }
-  return { page, id, query: url.searchParams.get("q")?.slice(0, 180) || "" };
+  const [archiveType, archiveLabel] =
+    archiveTypes.find(([key]) => key === url.searchParams.get("type")) ||
+    archiveTypes[0];
+  const area = url.searchParams.get("scope");
+  const archiveScope: Scope =
+    area === "local" || area === "us" || area === "global" ? area : "all";
+  return {
+    page,
+    id,
+    query: url.searchParams.get("q")?.slice(0, 180) || "",
+    archiveType,
+    archiveLabel,
+    archiveScope,
+  };
 }
 function Brand() {
   return (
@@ -150,7 +181,8 @@ export default function App() {
   const [online, setOnline] = useState(navigator.onLine);
   const prefsState = usePreferences();
   const { prefs, change } = prefsState;
-  const { page, id, query } = current;
+  const { page, id, query, archiveType, archiveScope } = current;
+  const coverage = page === "archive" ? archiveScope : scope;
   const isStory = page === "story";
   const loadPage =
     !["watchlist", "missing"].includes(page) &&
@@ -167,7 +199,10 @@ export default function App() {
   const feed = useFeed(
     {
       view: requestView,
-      scope,
+      scope: coverage,
+      ...(page === "archive" && archiveType !== "all"
+        ? { type: archiveType }
+        : {}),
       location: prefs.location,
       ...(query ? { q: query } : {}),
       ...(isStory && id ? { id } : {}),
@@ -180,7 +215,7 @@ export default function App() {
   );
   const events = feed.data.events;
   const selected = isStory ? events.find((e) => e.id === id) : undefined;
-  const navigate = useCallback((path: string) => {
+  const navigate = useCallback((path: string, keepPosition = false) => {
     if (window.location.pathname + window.location.search !== path)
       window.history.pushState({}, "", path);
     setCurrent(route());
@@ -188,8 +223,10 @@ export default function App() {
     setCategory("");
     setDrawer(false);
     setSearch(false);
-    window.scrollTo(0, 0);
-    document.getElementById("main-content")?.focus({ preventScroll: true });
+    if (!keepPosition) {
+      window.scrollTo(0, 0);
+      document.getElementById("main-content")?.focus({ preventScroll: true });
+    }
   }, []);
   const go = (p: Page) => navigate(paths[p] || "/");
   const open = (e: IntelEvent) =>
@@ -206,8 +243,13 @@ export default function App() {
         : [e.id, ...p.saved],
     }));
   };
-  const lookup = (q: string, dest = "investigate") =>
-    navigate("/" + dest + (q ? "?q=" + encodeURIComponent(q) : ""));
+  const lookup = (q: string, dest = "investigate") => {
+    if (dest === "archive" && page === "archive") {
+      navigate(archivePath(q, archiveType, archiveScope), true);
+    } else {
+      navigate("/" + dest + (q ? "?q=" + encodeURIComponent(q) : ""));
+    }
+  };
   const intercept = (ev: MouseEvent<HTMLAnchorElement>, url: string) => {
     if (
       ev.button === 0 &&
@@ -360,6 +402,7 @@ export default function App() {
     rows: IntelEvent[],
     empty: string,
     indexed = false,
+    noMatchDetail?: string,
   ): ReactNode =>
     rows.length ? (
       <>
@@ -382,9 +425,10 @@ export default function App() {
         detail={
           fail
             ? "You can retry the feed above."
-            : query
-              ? "Try another word or a broader filter."
-              : "New reports appear here as sources update."
+            : noMatchDetail ||
+              (query
+                ? "Try another word or a broader filter."
+                : "New reports appear here as sources update.")
         }
       />
     );
@@ -555,12 +599,38 @@ export default function App() {
                     submit={(q) => lookup(q, "archive")}
                   />
                 )}
-                <div className="list-tools">
+                <div className={page === "archive" ? "map-tools" : "list-tools"}>
                   <FilterBar
-                    scope={scope}
-                    set={setScope}
+                    scope={coverage}
+                    set={(next) => {
+                      if (page === "archive" && next !== "conspiracy") {
+                        navigate(archivePath(query, archiveType, next), true);
+                      } else {
+                        setScope(next);
+                      }
+                    }}
                     conspiracy={page === "trending"}
                   />
+                  {page === "archive" && (
+                    <label>
+                      Record type
+                      <select
+                        value={archiveType}
+                        onChange={(event) => {
+                          const type = archiveTypes.find(
+                            ([key]) => key === event.target.value,
+                          )?.[0] || "all";
+                          navigate(archivePath(query, type, archiveScope), true);
+                        }}
+                      >
+                        {archiveTypes.map(([key, name]) => (
+                          <option key={key} value={key}>
+                            {name}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  )}
                 </div>
                 {page === "rabbit" && (
                   <div className="editor-note">
@@ -604,8 +674,15 @@ export default function App() {
                   </PanelHeading>
                   {list(
                     events,
-                    "No reports match this view",
+                    page === "archive" && archiveType !== "all"
+                      ? "No matching " + current.archiveLabel.toLowerCase()
+                      : "No reports match this view",
                     page === "trending",
+                    page === "archive" && archiveType !== "all"
+                      ? feed.data.nextCursor
+                        ? "Load more reports to check earlier dates, or choose another record type."
+                        : "Choose All records or broaden your search and coverage filters."
+                      : undefined,
                   )}
                   {loadMore}
                 </section>
@@ -753,7 +830,7 @@ export default function App() {
         state={prefsState}
         story={selected}
         page={page}
-        scope={scope}
+        scope={coverage}
         query={query}
       />
       {message && (

@@ -21,7 +21,11 @@ const event: IntelEvent = {
   rank: 1,
   rankReasons: ["Recently published"],
 };
-async function mockAPI(page: Page, events: IntelEvent[] = [event]) {
+async function mockAPI(
+  page: Page,
+  events: IntelEvent[] = [event],
+  pageSize = 100,
+) {
   let prefs: Preferences = {
     saved: [],
     topics: [],
@@ -40,13 +44,16 @@ async function mockAPI(page: Page, events: IntelEvent[] = [event]) {
     const results = events.filter(
       (e) =>
         (!p.get("id") || p.get("id") === e.id) &&
+        (!p.get("type") || p.get("type") === "all" || p.get("type") === e.editorialType) &&
         (!p.get("q") ||
           e.title.toLowerCase().includes(p.get("q")!.toLowerCase())) &&
         (!p.get("scope") || ["all", e.scope].includes(p.get("scope")!)),
     );
+    const start = Number(p.get("cursor") || 0);
     await r.fulfill({
       json: {
-        events: results,
+        events: results.slice(start, start + pageSize),
+        nextCursor: start + pageSize < results.length ? String(start + pageSize) : null,
         updatedAt: new Date().toISOString(),
         health: [
           {
@@ -219,4 +226,35 @@ test("reopens the static reader offline with the last public briefing", async ({
   await expect(
     page.getByRole("link", { name: event.title }).first(),
   ).toBeVisible();
+});
+
+test("archive record types persist across search, pagination and browser history", async ({ page }) => {
+  const corrections: IntelEvent[] = [1, 2].map((i) => ({
+    ...event,
+    id: "correction-" + i,
+    title: "Maui bulletin clarification " + i,
+    category: "Correction",
+    editorialType: "correction",
+    supersedes: { name: "Earlier bulletin", url: event.url },
+  }));
+  await mockAPI(page, [event, ...corrections], 1);
+  await page.goto("/archive?q=Maui&scope=local");
+  const picker = page.getByRole("combobox", { name: "Record type" });
+  await picker.selectOption("correction");
+  await expect(page).toHaveURL(/q=Maui&type=correction&scope=local$/);
+  await expect(page.getByRole("link", { name: corrections[0].title })).toBeVisible();
+  await expect(page.getByRole("link", { name: event.title })).toHaveCount(0);
+  await page.getByRole("button", { name: "Load more reports" }).click();
+  await expect(page.getByRole("link", { name: corrections[1].title })).toBeVisible();
+  await page.getByRole("textbox", { name: "Search the archive" }).fill("clarification 2");
+  await page.getByRole("button", { name: "Search", exact: true }).click();
+  await expect(page).toHaveURL(/q=clarification\+2&type=correction&scope=local$/);
+  await expect(page.getByRole("link", { name: corrections[1].title })).toBeVisible();
+  await picker.selectOption("prediction");
+  await expect(page.getByRole("heading", { name: "No matching predictions" })).toBeVisible();
+  await page.goBack();
+  await expect(picker).toHaveValue("correction");
+  await expect(page.getByRole("link", { name: corrections[1].title })).toBeVisible();
+  await page.getByRole("link", { name: corrections[1].title }).click();
+  await expect(page.getByRole("link", { name: /Report being corrected Earlier bulletin/ })).toHaveAttribute("href", event.url);
 });

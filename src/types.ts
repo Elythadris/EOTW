@@ -9,7 +9,11 @@ export type Page =
   | "archive"
   | "health"
   | "story";
+export type EditorialType = "original" | "investigation" | "prediction" | "correction";
+
 export interface IntelEvent {
+  editorialType?: EditorialType;
+  supersedes?: { name: string; url: string };
   id: string;
   title: string;
   summary: string;

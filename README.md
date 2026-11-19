@@ -28,6 +28,10 @@ Requires Node.js 24 and npm. A Netlify project linked to this repository supplie
 
 Import the repository into Netlify and select `main`. Netlify reads the command, publish directory, Functions path and cache headers from `netlify.toml`. The production command runs unit tests before publishing. Deploy Previews also run browser tests. GitHub Actions provides the same checks for pull requests. A fresh project starts with an empty archive. Its first successful scheduled collection supplies the initial briefing.
 
+## Publish original material
+
+Editors can add sourced original reporting, investigations, predictions and corrections through the [editorial collection](editorial/README.md). The scheduled collector reads published records from GitHub. A change confined to the editorial directory updates the archive without rebuilding the frontend. The empty initial collection is intentional.
+
 ## Data and operations
 
 The collector wakes every five minutes UTC on published production deploys. Each adapter enforces its own check interval, validators, retry schedule and quotas. The frontend polls the stored briefing. Reader requests never trigger mass upstream collection. A successful upstream check and a story's publication time measure different things. The UI exposes both.

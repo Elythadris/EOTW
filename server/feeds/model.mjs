@@ -128,6 +128,11 @@ export function record(raw, now = Date.now()) {
     publishedAt,
     updatedAt,
     category,
+    ...(raw.editorialType ? {
+      editorialType: raw.editorialType,
+      byline: raw.byline,
+      supersedes: raw.supersedes,
+    } : {}),
     scope:
       raw.scope === "us" ||
       usPlace.test(location) ||
@@ -173,6 +178,8 @@ export function record(raw, now = Date.now()) {
 }
 export function combine(old, next, at) {
   if (!old) return next;
+  if (next.editorialType && next.updatedAt < old.updatedAt) return old;
+  if (next.editorialType) at = next.updatedAt;
   const useNext = next.updatedAt >= old.updatedAt;
   const primary = useNext ? next : old;
   const timeline = [...old.timeline];
@@ -211,7 +218,7 @@ export function combine(old, next, at) {
     id: old.id,
     publishedAt: old.publishedAt,
     observedAt: old.observedAt || next.observedAt,
-    sources,
+    sources: next.editorialType ? primary.sources : sources,
     timeline: timeline.filter(
       (entry, i) =>
         timeline.findIndex(

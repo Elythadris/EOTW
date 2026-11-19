@@ -1,3 +1,4 @@
+import { editorialRows } from "./editorial.mjs";
 import { XMLParser } from "fast-xml-parser";
 import { date, plain, record } from "./model.mjs";
 
@@ -316,6 +317,14 @@ export function definitions(env = process.env) {
       },
     ),
     {
+      id: "editorial",
+      name: "EOTW editorial desk",
+      minutes: 5,
+      url: "https://raw.githubusercontent.com/Elythadris/EOTW/refs/heads/main/editorial/records.json",
+      maxBytes: 400_000,
+      parse: editorialRows,
+    },
+    {
       id: "federal",
       name: "Federal Register",
       minutes: 60,
@@ -547,7 +556,7 @@ export async function fetchProvider(
     fetcher,
   );
   if (response.status === 304) return { unchanged: true };
-  const raw = provider.parse(await body(response));
+  const raw = provider.parse(await body(response, provider.maxBytes), now);
   const events = raw.map((item) => record(item, now)).filter(Boolean);
   if (raw.length && !events.length)
     throw new Error("No valid records in upstream response");

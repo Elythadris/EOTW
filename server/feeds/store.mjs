@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { getStore } from "@netlify/blobs";
+import { editorialTypes } from "./editorial.mjs";
 import { DAY, HOUR, ranked, fold, combine, validId } from "./model.mjs";
 import { definitions, fetchProvider } from "./providers.mjs";
 
@@ -31,7 +32,7 @@ export function sourceHealth(state,defs,now) {
   });
 }
 function fingerprint(event) {
-  if (event.title.length < 48 || event.transient || ["Weather","Earthquake","Natural event"].includes(event.category)) return "";
+  if (event.title.length < 48 || event.editorialType || event.transient || ["Weather","Earthquake","Natural event"].includes(event.category)) return "";
   return event.publishedAt.slice(0,10) + "|" + fold(event.title).replace(/[^\p{L}\p{N}]+/gu," ").trim();
 }
 async function updateDay(store,day,changes) {
@@ -41,7 +42,9 @@ async function updateDay(store,day,changes) {
     const entries=new Map((prev?.data || []).map(e=>[e.id,e]));
     for (const entry of changes) {
       const existing=entries.get(entry.id);
-      if (!existing || existing.updatedAt <= entry.updatedAt) {
+      if (existing && entry.editorialType && existing.updatedAt <= entry.updatedAt) {
+        entries.set(entry.id, combine(existing, entry, entry.updatedAt));
+      } else if (!existing || existing.updatedAt <= entry.updatedAt) {
         const history=new Map([...(existing?.timeline || []),...entry.timeline].map(t=>[t.at+"|"+t.text,t]));
         const sources=new Map([...(existing?.sources || []),...entry.sources].map(s=>[s.url,s]));
         entries.set(entry.id,{...entry,timeline:[...history.values()],sources:[...sources.values()].slice(0,12)});
@@ -121,6 +124,7 @@ export async function collect({store=repository(),now=Date.now(),defs=definition
   return {checked:due.length,succeeded:successes,changed:changed.size,events:state.events.length};
 }
 function matches(event,params) {
+  if (params.type && params.type !== "all" && event.editorialType !== params.type) return false;
   const words=fold(params.q || "").split(/\s+/).filter(Boolean);
   const corpus=fold([event.title,event.summary,event.location,event.category,event.source,...event.timeline.map(t=>t.text)].join(" "));
   if (!words.every(w=>corpus.includes(w))) return false;
@@ -134,9 +138,9 @@ function responseEvent(event,detail) {
 const archivePointer = /^(\d{4}-\d{2}-\d{2}):(\d{1,6})$/;
 export function parseFeedParams(url) {
   const p=url.searchParams;
-  const query={view:p.get("view") || "briefing",scope:p.get("scope") || "all",q:(p.get("q") || "").trim(),
+  const query={type:p.get("type") || "all",view:p.get("view") || "briefing",scope:p.get("scope") || "all",q:(p.get("q") || "").trim(),
     location:(p.get("location") || "Maui").trim(),id:p.get("id") || "",cursor:p.get("cursor") || "",limit:Number(p.get("limit") || 100)};
-  if (!["briefing","trending","rabbit","archive"].includes(query.view) || !["all","local","us","global","conspiracy"].includes(query.scope)
+  if ((query.type !== "all" && !Object.hasOwn(editorialTypes,query.type)) || !["briefing","trending","rabbit","archive"].includes(query.view) || !["all","local","us","global","conspiracy"].includes(query.scope)
     || query.q.length>220 || query.location.length>100 || (query.id && !validId(query.id)) || !Number.isInteger(query.limit)
     || query.limit<1 || query.limit>200 || (query.cursor && !(/^\d{1,6}$/.test(query.cursor) || archivePointer.test(query.cursor)))) throw new Error("Invalid feed parameters.");
   return query;
