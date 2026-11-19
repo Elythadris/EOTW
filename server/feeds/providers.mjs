@@ -27,10 +27,11 @@ export function usgs(text) {
   });
 }
 export function nws(text) {
-  return array(object(text),"features").filter(item => item.properties?.status === "Actual")
+  return array(object(text),"features").filter(item => item.properties?.status === "Actual" && item.properties?.messageType !== "Cancel")
     .map(item => {
       const p=item.properties;
-      return {title:p.headline || p.event,summary:p.description,url:item.id || p["@id"],source:"National Weather Service",
+      const states=[...new Set((p.geocode?.UGC || []).map(code=>String(code).slice(0,2)))];
+      return {state:states.length === 1 ? states[0] : null,boundary:item.geometry?.type==="Polygon",title:p.headline || p.event,summary:p.description,url:item.id || p["@id"],source:"National Weather Service",
         publishedAt:p.sent,expiresAt:p.ends || p.expires,category:"Weather",scope:"us",location:p.areaDesc,
         coords:mapPoint(item.geometry),natural:true,status:"confirmed",severity:/^(Extreme|Severe)$/i.test(p.severity) ? "high" : p.severity === "Moderate" ? "moderate" : "routine",
         severityReason:"NWS-designated " + p.severity + " severity",originLabel:"NWS issued this alert."};
@@ -44,7 +45,7 @@ function eonet(text) {
     const place = item.title.includes(" - ") ? item.title.split(" - ").at(-1) : "";
     const kind = item.categories?.map(c => c.title).join(", ") || "Natural event";
     return [{url:item.link,source:"NASA EONET",title:item.title,summary:item.description || kind + " tracked by NASA EONET.",
-      category:"Natural event",status:"confirmed",location:place,coords:mapPoint(latest),natural:true,
+      category:"Natural event",status:"confirmed",location:place,coords:mapPoint(latest),natural:true,boundary:latest.type === "Polygon",
       publishedAt:history[0].date,updatedAt:latest.date,originLabel:"First observation listed by EONET.",
       sources:item.sources?.map(s => ({name:s.id,url:s.url}))}];
   });
@@ -56,15 +57,29 @@ export function rss(text, options) {
   const items = channel.item == null ? [] : [channel.item].flat();
   return items.slice(0,options.limit || 35).map(item => ({
     source:options.name,title:item.title,url:item.link,publishedAt:item.pubDate || item["dc:date"],location:options.location || "",
-    category:options.category,scope:options.scope,topicClaim:options.topicClaim === true,status:options.official ? "confirmed" : "developing",
+    category:options.category,scope:options.scope,county:options.county,state:options.state,country:options.country,placeTags:item.category,topicClaim:options.topicClaim === true,status:options.official ? "confirmed" : "developing",
     summary:options.official ? plain(item.description,360) : "",
     ...(options.byline && item["dc:creator"] ? {source:plain(item["dc:creator"],48) + " · " + options.name} : {})
   }));
 }
+const atom=new XMLParser({ignoreAttributes:false,attributeNamePrefix:"@",parseTagValue:false,trimValues:true});
+function conversation(text) {
+  if (/<!DOCTYPE|<!ENTITY/i.test(text)) throw new Error("Unsupported XML declaration");
+  const feed=atom.parse(text).feed;
+  if (!feed?.title) throw new Error("Invalid Atom feed");
+  return [feed.entry || []].flat().slice(0,20).map(item=>{
+    const links=[item.link || []].flat();
+    const author=[item.author || []].flat()[0]?.name?.split(",")[0];
+    return {title:typeof item.title === "string" ? item.title : item.title?.["#text"],
+      url:links.find(l=>l["@rel"] === "alternate" || !l["@rel"])?.["@href"],source:(author ? author+" · " : "")+"The Conversation",
+      category:"Analysis",publishedAt:item.published,updatedAt:item.updated,status:"developing",
+      placeTags:[item.category || []].flat().map(c=>c["@term"])};
+  });
+}
 function federal(text) {
   return array(object(text),"results").map(item => ({source:"Federal Register",title:item.title,url:item.html_url,
     summary:item.abstract,publishedAt:item.publication_date,category:"Government",scope:"us",
-    location:"United States",status:"confirmed",originLabel:"Federal Register publication date (UTC day)."}));
+    location:"United States",country:"US",status:"confirmed",originLabel:"Federal Register publication date (UTC day)."}));
 }
 function gdelt(text) {
   const result=object(text);
@@ -92,11 +107,13 @@ export function definitions(env = process.env) {
     {id:"nws-us",name:"NWS severe U.S. alerts",minutes:5,url:"https://api.weather.gov/alerts/active?severity=Severe%2CExtreme&status=actual",parse:nws,replace:true},
     {id:"usgs",name:"USGS earthquakes",minutes:5,url:"https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/2.5_day.geojson",parse:usgs,replace:true},
     {id:"eonet",name:"NASA EONET",minutes:30,url:"https://eonet.gsfc.nasa.gov/api/v3/events?status=open&limit=40&days=14",parse:eonet,replace:true},
-    rssSource("maui","County of Maui","https://www.mauicounty.gov/RSSFeed.aspx?ModID=1&CID=0",15,{location:"Maui County, Hawaiʻi",scope:"us",category:"County bulletin",official:true,limit:28}),
-    rssSource("hiema","Hawaiʻi Emergency Management Agency","https://dod.hawaii.gov/hiema/feed/",15,{location:"Hawaiʻi",scope:"us",category:"State bulletin",official:true}),
+    rssSource("maui","County of Maui","https://www.mauicounty.gov/RSSFeed.aspx?ModID=1&CID=0",15,{location:"Maui County, Hawaiʻi",county:"15009",scope:"us",category:"County bulletin",official:true,limit:28}),
+    rssSource("hiema","Hawaiʻi Emergency Management Agency","https://dod.hawaii.gov/hiema/feed/",15,{location:"Hawaiʻi",state:"HI",scope:"us",category:"State bulletin",official:true}),
     {id:"federal",name:"Federal Register",minutes:60,url:"https://www.federalregister.gov/api/v1/documents.json?per_page=20&order=newest",parse:federal},
     rssSource("scicheck","FactCheck.org · SciCheck","https://www.factcheck.org/scicheck/feed/",60,{scope:"us",category:"Fact check",topicClaim:true}),
     {id:"uap-records",name:"Federal Register UAP records",minutes:360,url:"https://www.federalregister.gov/api/v1/documents.json?conditions%5Bterm%5D=%22unidentified%20anomalous%20phenomena%22&order=newest&per_page=10",parse:text=>federal(text).map(item=>({...item,topicClaim:true,category:"Public record"}))},
+    rssSource("justice","U.S. Department of Justice","https://www.justice.gov/news/rss?type=press_release",30,{country:"US",scope:"us",category:"Justice bulletin",official:true,limit:18}),
+    {id:"conversation",name:"The Conversation · U.S. edition",minutes:30,url:"https://theconversation.com/us/articles.atom",parse:conversation},
     rssSource("voices","Global Voices","https://globalvoices.org/feed/",30,{scope:"global",category:"World",byline:true}),
     {id:"gdelt",name:"GDELT news discovery",minutes:30,url:endpoint,parse:gdelt},
     {id:"guardian",name:"The Guardian Open Platform",minutes:30,url:"https://content.guardianapis.com/search?" + new URLSearchParams({section:"world|us-news","order-by":"newest","page-size":"20","api-key":env.GUARDIAN_API_KEY || ""}),headers:{},parse:guardian,

@@ -78,3 +78,20 @@ test('shows an offline state with an honest retry path when feeds fail',async({p
   await expect(page.getByRole('heading',{name:'Awaiting published reports'})).toBeVisible()
   await expect(page.getByRole('link',{name:event.title})).toHaveCount(0)
 })
+
+test('reopens the static reader offline with the last public briefing', async({page,context})=>{
+  await mockAPI(page)
+  await page.goto('/')
+  await expect(page.getByRole('link',{name:event.title}).first()).toBeVisible()
+  await page.evaluate(async()=>{
+    await navigator.serviceWorker.ready
+    if(!navigator.serviceWorker.controller)await new Promise<void>(resolve=>navigator.serviceWorker.addEventListener('controllerchange',()=>resolve(),{once:true}))
+  })
+  await page.unroute('**/api/feed?**')
+  await page.unroute('**/api/preferences')
+  await context.setOffline(true)
+  await page.reload()
+  await expect(page.getByRole('heading',{name:'Command center',level:1})).toBeVisible()
+  await expect(page.getByText(/Offline\. Showing the last available update/)).toBeVisible()
+  await expect(page.getByRole('link',{name:event.title}).first()).toBeVisible()
+})

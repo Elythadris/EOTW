@@ -1,3 +1,4 @@
+import { broadLocation } from "./geography.mjs";
 import { createHash } from "node:crypto";
 
 export const HOUR = 3600000;
@@ -32,7 +33,8 @@ export function record(raw, now = Date.now()) {
   const publishedAt = date(raw.publishedAt);
   if (!url || !title || !publishedAt || Date.parse(publishedAt) > now + 300000) return null;
   const source = plain(raw.source, 90);
-  const location = plain(raw.location, 300);
+  const broad = broadLocation(raw,title);
+  const location = plain(raw.location, 300) || broad?.name || "";
   const updated = date(raw.updatedAt);
   const updatedAt = updated && updated >= publishedAt && Date.parse(updated) <= now + 300000 ? updated : publishedAt;
   const id = publishedAt.slice(0, 10) + "-" + createHash("sha256").update(url).digest("hex").slice(0, 20);
@@ -41,10 +43,17 @@ export function record(raw, now = Date.now()) {
     && Math.abs(coords[0]) <= 180 && Math.abs(coords[1]) <= 90 && raw.natural === true;
   const sources = [{name:source,url}, ...(raw.sources || []).map(item => ({name:plain(item.name,90),url:link(item.url)}))];
   const status = raw.status || "developing";
+  const news = ["World","News discovery","Analysis"].includes(raw.category);
+  let category=plain(raw.category,80) || "Reporting";
+  if (news && /\b(ceasefire|peace talks|armed conflict|airstrikes?|invasion)\b/i.test(title)) category="Conflict reporting";
+  else if (news && /\b(evacuations?|declared emergency|state of emergency|major incident)\b/i.test(title)) category="Emergency reporting";
+  else if (news && claimTopics.test(title)) category="Claim coverage";
   return {
     id, title, summary:plain(raw.summary, 650), url, source, publishedAt, updatedAt,
-    category:plain(raw.category, 80) || "Reporting", scope:raw.scope || (usPlace.test(location) || usPlace.test(fold(location)) ? "us" : "global"), location,
-    lat:mapped ? coords[1] : null, lon:mapped ? coords[0] : null,
+    category, scope:raw.scope === "us" || usPlace.test(location) || usPlace.test(fold(location)) ? "us" : (raw.scope || "global"), location,
+    lat:mapped ? coords[1] : broad?.coords[1] ?? null, lon:mapped ? coords[0] : broad?.coords[0] ?? null,
+    coordinatePrecision:mapped ? (raw.boundary ? "source-boundary" : "source-point") : broad?.precision || null,
+    mapNote:mapped ? (raw.boundary ? "Representative vertex of the published hazard boundary. See the source for the full affected area." : "Hazard coordinates supplied by "+source+".") : broad?.note || "",
     status, severity:raw.severity || "routine", severityReason:plain(raw.severityReason,160),
     sources:[...new Map(sources.filter(s => s.name && s.url).map(s => [s.url,s])).values()].slice(0,12),
     timeline:[{at:publishedAt,text:plain(raw.originLabel,80) || "Source published this record."}],

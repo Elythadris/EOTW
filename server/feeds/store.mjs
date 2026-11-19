@@ -164,6 +164,18 @@ async function archivePage(store,days,params,now) {
   return {events,nextCursor:days[dayIndex] ? days[dayIndex]+":0" : null};
 }
 
+function briefingOrder(rankedEvents,now) {
+  const leads=[];
+  const used=new Set();
+  const eligible=rankedEvents.filter(e=>now-Date.parse(e.updatedAt)<=7*DAY);
+  function select(event) {if (event && !used.has(event.id)) {leads.push(event);used.add(event.id);}}
+  eligible.filter(e=>e.severity==="high").slice(0,2).forEach(select);
+  const categories=new Set();
+  for (const event of eligible) {
+    if (!categories.has(event.category)) {select(event);categories.add(event.category);}
+  }
+  return [...leads,...rankedEvents.filter(e=>!used.has(e.id))];
+}
 export async function searchEvents(input={}, {store=repository(),now=Date.now(),defs=definitions()}={}) {
   const params={view:"briefing",scope:"all",location:"Maui",limit:100,...input};
   params.limit=Math.max(1,Math.min(200,Number(params.limit) || 100));
@@ -186,12 +198,14 @@ export async function searchEvents(input={}, {store=repository(),now=Date.now(),
   events.sort(compare);
   if (params.view === "briefing" && params.scope === "all") {
     // Reserve space in the first page for every region during high-volume hazard days.
-    const groups=["local","us","global"].map(s=>events.filter(e=>e.scope===s));
+    const groups=["local","us","global"].map(s=>briefingOrder(events.filter(e=>e.scope===s),now));
     const take=Math.max(1,Math.floor(params.limit/3));
     const lead=groups.flatMap(group=>group.slice(0,take));
     const chosen=new Set(lead.map(e=>e.id));
     const extra=events.filter(e=>!chosen.has(e.id));
     events=[...lead,...extra];
+  } else if (params.view === "briefing") {
+    events=briefingOrder(events,now);
   }
   const start=/^\d{1,6}$/.test(params.cursor || "") ? Number(params.cursor) : 0;
   return {...metadata,events:events.slice(start,start+params.limit).map(e=>responseEvent(e,false)),nextCursor:start+params.limit<events.length ? String(start+params.limit) : null};

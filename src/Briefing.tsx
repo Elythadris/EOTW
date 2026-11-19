@@ -17,7 +17,7 @@ export default function Briefing({data,busy,state,open,save,go,setLocation}:Prop
     <div className="home-hero">
       <section className="panel map-panel"><PanelHeading icon={<Radar size={19}/>} action={()=>go('map')} actionLabel="Open map">Situation map</PanelHeading>
         <EventMap events={data.events} onSelect={open} compact/>
-        <div className="map-caption"><span><i className="map-dot"/>Located reports</span><span>Hazard coordinates · News reporting areas</span></div>
+        <div className="map-caption"><span><i className="map-dot"/>Hazards use source coordinates. News markers show broad reporting areas.</span></div>
       </section>
       <section className="panel local-panel"><div className="local-head"><span className="section-kicker"><MapPin size={15}/>Local briefing</span><button onClick={setLocation} className="small-link">Change</button></div><h2>{prefs.location}</h2>
         {local.length>0?<div className="local-items">{local.slice(0,2).map(e=><article key={e.id}><div className="story-meta"><span className="category">{e.category}</span><time dateTime={e.publishedAt} title={dateTime(e.publishedAt)}>{relative(e.publishedAt)}</time></div><h3><a href={'/story/'+encodeURIComponent(e.id)} onClick={ev=>{if(!ev.ctrlKey&&!ev.metaKey&&!ev.shiftKey&&!ev.altKey){ev.preventDefault();open(e)}}}>{e.title}</a></h3><span>{e.source}</span></article>)}</div>:busy?<Skeleton/>:<div className="local-empty"><Compass size={26}/><p>No current reports matched this location.</p><small>New matches appear as sources update.</small></div>}

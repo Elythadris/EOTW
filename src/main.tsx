@@ -23,3 +23,9 @@ class ReaderBoundary extends React.Component<{children:React.ReactNode},{failed:
 }
 routeIdentityCallback()
 createRoot(document.getElementById('root')!).render(<ReaderBoundary><App/></ReaderBoundary>)
+
+if(import.meta.env.PROD && 'serviceWorker' in navigator){
+  window.addEventListener('load',()=>{
+    void navigator.serviceWorker.register('/sw.js',{updateViaCache:'none'}).catch(()=>{ /* Live reading works without offline shell storage. */ })
+  },{once:true})
+}

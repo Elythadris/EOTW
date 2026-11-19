@@ -11,7 +11,8 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "test": "node --test tests/*.test.mjs",
-    "test:ui": "playwright test"
+    "test:ui": "playwright test",
+    "postbuild": "node scripts/offline.mjs"
   },
   "dependencies": {
     "@fontsource/barlow-condensed": "5.3.0",

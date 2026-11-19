@@ -32,6 +32,18 @@ test("canonical URLs, upstream timestamps and safe mapping are required",()=>{
   assert.equal(fixture({natural:true,coords:[12,42]}).lat,42);
   assert.equal(fixture({summary:"<script>bad()</script>Good  text"}).summary,"Good text");
 });
+test("broad markers identify reporting jurisdictions and avoid ambiguous places",()=>{
+  const tagged=fixture({title:"An election report",placeTags:["Elections","Georgia"]});
+  assert.equal(tagged.coordinatePrecision,"country");
+  assert.match(tagged.mapNote,/Georgia/);
+  assert.equal(fixture({title:"Ceasefire talks in Ukraine",category:"World"}).category,"Conflict reporting");
+  assert.equal(fixture({title:"Ceasefire talks in Ukraine",category:"World"}).coordinatePrecision,"country");
+  assert.equal(fixture({title:"Trade talks in France and Germany"}).lat,null);
+  assert.equal(fixture({title:"A report from London",placeTags:["France","Germany"]}).lon,null);
+  assert.equal(fixture({title:"News conference in Georgia"}).lat,null);
+  assert.equal(fixture({country:"US"}).coordinatePrecision,"country");
+  assert.equal(fixture({county:"15009"}).coordinatePrecision,"region");
+});
 test("real provider field shapes respect verification and significance",()=>{
   const quake=usgs(JSON.stringify({features:[{geometry:{type:"Point",coordinates:[-156,20,5]},
     properties:{title:"Reported earthquake",url:"https://example.org/quake",place:"South of Maui, Hawaii",time:clock-1000,
