@@ -1,0 +1,6 @@
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /.netlify/
+Disallow: /watchlist
+Sitemap: https://eotw-watch.netlify.app/sitemap.xml

@@ -1,0 +1,21 @@
+.eotw-map { position:relative; overflow:hidden; isolation:isolate; color:#d6dddc; background:#131a1d; border:1px solid #394143; border-radius:3px }
+.eotw-map-canvas { display:block; width:100%; height:auto; min-height:220px; max-height:70vh; background:radial-gradient(ellipse at 45% 40%, #222d30 0%, #141b1e 75%) }
+.eotw-country { fill:#4c5859; stroke:#243135; stroke-width:.75px }
+.eotw-ocean { fill:#91a3a5; letter-spacing:2px; font-family:'IBM Plex Mono',monospace; pointer-events:none }
+.eotw-marker { cursor:pointer }
+.eotw-map-canvas:focus-visible,.eotw-marker:focus-visible,.eotw-map button:focus-visible { outline:2px solid #ffe8c5; outline-offset:-2px }
+.eotw-marker:is(:focus,:hover) .eotw-halo { fill-opacity:.7; stroke:#fff }
+.eotw-controls { display:flex; flex-direction:column; position:absolute; top:12px; right:12px; border:1px solid #526062; border-radius:3px; overflow:hidden }
+.eotw-controls button,.eotw-cluster button { background:#182023; color:#edf1ee; cursor:pointer; font:inherit; border:0 }
+.eotw-controls button { display:grid; place-items:center; width:36px; height:35px; padding:0 }
+.eotw-controls button+button { border-top:1px solid #414e50 }
+.eotw-controls button:disabled { color:#889493; cursor:default }
+.eotw-controls button:hover:enabled,.eotw-cluster button:hover { background:#334044 }
+.eotw-map-caption { display:flex; justify-content:space-between; align-items:center; gap:12px; padding:8px 12px; border-top:1px solid #333f42; font:12px/1.4 'IBM Plex Mono',monospace; color:#bdc8c9 }
+.eotw-map-caption i { display:inline-block; width:7px; height:7px; border-radius:50%; background:#ffc07b; margin-right:4px }
+.eotw-cluster { position:absolute; left:10px; top:10px; width:min(320px,calc(100% - 77px)); max-height:72%; overflow:auto; background:#182023; box-shadow:0 4px 16px #0009; border:1px solid #667274; border-radius:3px; }
+.eotw-cluster>div { display:flex; align-items:center; justify-content:space-between; padding:8px 12px; font-size:14px }
+.eotw-cluster button { padding:8px; line-height:1.4 }
+.eotw-cluster>button { display:block; width:100%; text-align:left; border-top:1px solid #3e484a; font-size:14px; }
+.map-sr { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0 }
+@media(max-width:600px){.eotw-map-canvas{min-height:190px}.eotw-controls{right:7px;top:7px}.eotw-controls button{width:32px;height:32px}}

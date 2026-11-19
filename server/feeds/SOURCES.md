@@ -1,0 +1,43 @@
+# Source coverage and operation
+
+The production collector wakes every five minutes UTC. An adapter runs when its own next-check time is due. A successful check can return zero reports. The dashboard exposes each provider's most recent successful poll and its health. Publication times come from the source. GDELT entries use its observation time and say so in the timeline.
+
+| Provider | Check interval | Coverage |
+| --- | --- | --- |
+| NWS | 5 minutes | Active Hawaiʻi alerts and severe or extreme alerts across the U.S. |
+| USGS | 5 minutes | Magnitude 2.5 or greater earthquakes from the past day |
+| NASA EONET | 30 minutes | Open natural events observed in the last 14 days |
+| County of Maui and Hawaiʻi EMA | 15 minutes | County news releases and state emergency management bulletins |
+| Federal Register | 1 hour | Recently published U.S. public notices and regulations |
+| Federal Register UAP records | 6 hours | Public documents indexed for the phrase “unidentified anomalous phenomena” |
+| Global Voices | 30 minutes | Headlines, bylines and links to international reporting |
+| FactCheck.org SciCheck | 1 hour | Links to published science fact checks |
+| GDELT DOC | 30 minutes | English-language news discovery around hazards, conflicts, secrecy and tracked narratives |
+| Guardian Open Platform | 30 minutes | Headlines from World and US News when licensed access is configured |
+| Reddit Data API | 15 minutes | Approved, public discussion links from r/UFOs and r/conspiracy |
+
+The archive starts with the upstream records available during the first collection. Coverage grows as new records arrive. EOTW preserves published records, source links and changes to indexed titles and summaries. Provider coverage limits and outages affect completeness. Search uses case- and accent-insensitive matching. Archive queries page through UTC date partitions, including sparsely matching historical dates. An empty result with a continuation cursor means that earlier partitions still exist.
+
+## Configuration
+
+Netlify provides the reporting Blobs store in production. The initial document migration opens a versioned empty state on first use. The collector writes a consistent snapshot after updating the archive. Conditional writes protect collector retries. The dashboard reads that snapshot independently of deployments and upstream outages. Standard reads are cached at the CDN for 30 seconds with query-aware variation. The archive keeps historical non-social reports when weather alerts expire, move out of a provider's active list or a provider is disabled.
+
+Use DISABLED_FEEDS to disable individual provider IDs, separated by commas. The IDs are nws-hi, nws-us, usgs, eonet, maui, hiema, federal, uap-records, voices, scicheck, gdelt, guardian and reddit. An upstream 429 defers the next poll, honoring Retry-After. Other consecutive failures apply exponential backoff. Cached public records continue to be available. A source that misses three expected checks (at least twenty minutes) is marked overdue.
+
+Set GUARDIAN_API_KEY to a key licensed for the site's intended use. For Reddit, supply REDDIT_CLIENT_ID, REDDIT_CLIENT_SECRET and REDDIT_USER_AGENT using the app's registered identity. Set REDDIT_APPROVED=true only after obtaining approval for the actual public display use case. The collector uses app-only OAuth, displays public discussion metadata, excludes adult and removed posts, replaces its short-lived list every poll and excludes it from the durable archive. Responses with social entries bypass the CDN cache. Disabling Reddit and running the collector drops the transient data from the current snapshot.
+
+## Reading the rankings
+
+Recency contributes up to 48 points, losing one point per elapsed hour. Severe and extreme NWS warnings and earthquakes of magnitude 6 or greater add 48 points. Moderate NWS warnings and earthquakes of magnitude 5 or greater add 20. Each additional publisher indexed for an identically titled story on the same UTC date contributes four points for its first 24 hours, up to 16. Public interest uses the base-two log of one plus the published USGS felt-report count or Reddit discussion comment count, capped at 12. The UI gets the component reasons with each record. Most reporting has no public-interest observation.
+
+A confirmed label on an official bulletin describes issuance of the bulletin. Automatically located earthquakes remain developing until USGS review. Reported claims, public records about claims and community speculation retain their own evidence labels. Coordinates come from an upstream natural-hazard point or a representative vertex of a published polygon. Other events can have a place label without coordinates. Briefing geography uses the selected place name against the reporting metadata. Earthquake place strings also recognize U.S. states. GDELT publisher country is never used as evidence of an event's location.
+
+## Source references
+
+- [NWS API](https://www.weather.gov/documentation/services-web-api), [USGS GeoJSON](https://earthquake.usgs.gov/earthquakes/feed/v1.0/geojson.php), [EONET v3](https://eonet.gsfc.nasa.gov/docs/v3)
+- [County of Maui](https://www.mauicounty.gov/RSSFeed.aspx?ModID=1&CID=0), [Hawaiʻi EMA](https://dod.hawaii.gov/hiema/feed/), [Federal Register API](https://www.federalregister.gov/developers/documentation/api/v1)
+- [Global Voices and its attribution terms](https://globalvoices.org/about/global-voices-attribution-policy/), [SciCheck](https://www.factcheck.org/scicheck/)
+- [GDELT DOC](https://blog.gdeltproject.org/gdelt-doc-2-0-api-debuts/), [Guardian access and licensing](https://open-platform.theguardian.com/access/), [Reddit API terms](https://redditinc.com/policies/data-api-terms)
+- [Netlify Blobs](https://docs.netlify.com/build/data-and-storage/netlify-blobs/), [Scheduled Functions](https://docs.netlify.com/build/functions/scheduled-functions/)
+
+Run the read-only adapter probe with node server/feeds/smoke.mjs. It prints status and normalized record count for each adapter. Use node --test tests/ingest.test.mjs for deterministic regression tests that exercise collection, deduplication, revision retention, pagination, verification labels, archive retrieval, social retention and endpoint validation.
