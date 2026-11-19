@@ -11,7 +11,7 @@ const pager = { green: 0, yellow: 1, orange: 2, red: 3 };
 const severeWeather = /\b(tornado|tsunami|flash flood|hurricane|storm surge|blizzard|extreme wind|ice storm)\b/i;
 const warning = /\bwarning\b/i;
 const quietWords = /\b(?:training exercise|simulation|drill|test message|annual report|risk of|fears? of|could|might|may trigger|averts?|prevent(?:s|ing)?|claims? of|rumou?rs? of|request for comments|public meeting|tabletop|what if|may soon|could trigger|could spark|prepares? for|preparing for|anniversary|years? ago|how to|opinion|retrospective|false claim|rescinded|rescinds?|reopened|reopens?|lift(?:ed|s) (?:an? |the )?(?:advisory|order|curfew)|(?:advisory|curfew|order|closure) (?:is |has been )?(?:lifted|ended|canceled|cancelled)|no threat|all clear|warning (?:canceled|cancelled|lifted)|outage (?:resolved|ended)|services? restored)\b/i;
-const domains = ["apnews.com","reuters.com","bbc.com","bbc.co.uk","npr.org","pbs.org","theguardian.com","globalvoices.org","theconversation.com","hawaiipublicradio.org","civilbeat.org","un.org","who.int","reliefweb.int","icrc.org","federalregister.gov","mauicounty.gov","hawaii.gov","justice.gov"];
+const domains = ["apnews.com","reuters.com","bbc.com","bbc.co.uk","npr.org","pbs.org","theguardian.com","globalvoices.org","theconversation.com","hawaiipublicradio.org","civilbeat.org","factcheck.org","un.org","who.int","reliefweb.int","icrc.org","federalregister.gov","mauicounty.gov","hawaii.gov","justice.gov"];
 const criticalText = [
   {key:"evacuation",category:"Civil emergency",pattern:/\b(?:mandatory (?:evacuation|shelter)|evacuation (?:orders?|ordered)|ordered to evacuate|shelter.in.place order|boil.water (?:order|notice)|emergency (?:has been |was |is )?declared|declares? (?:a )?(?:state of |public health )?emergency)\b/i, impact:27, severity:15, monitor:"Check whether authorities expand, lift or revise the order."},
   {key:"water",category:"Water safety",pattern:/\b(?:unsafe.water advisory|do.not.(?:drink|use)(?:.water)? (?:advisory|notice|order)|(?:water (?:notice|advisory|order)|residents (?:are )?(?:told|urged|warned))[^.!?]{0,55}(?:do not drink|not to drink)|boil.water (?:advisory|notice|order))\b/i,impact:26,severity:15,monitor:"Check the issuing water authority’s affected service areas, testing and updates."},
@@ -115,10 +115,8 @@ export function annotate(event, now, location="Maui") {
   if (!signal) return null;
   const changes=event.observations?.changes || [];
   const recent=changes.filter(c=>millis(c.at)<=now && now-millis(c.at)<=DAY);
-  const coverage=recent.filter(c=>c.kind==="coverage");
-  const lastSix=coverage.filter(c=>now-millis(c.at)<=6*HOUR).length;
-  const priorSix=coverage.filter(c=>now-millis(c.at)>6*HOUR && now-millis(c.at)<=12*HOUR).length;
-  const acceleration=recent.some(c=>c.kind==="escalation") ? 10 : lastSix>=2 && lastSix>priorSix ? 7 : recent.some(c=>c.kind==="interest") ? 4 : 0;
+  const growth=acceleratingCoverage(recent,now);
+  const acceleration=recent.some(c=>c.kind==="escalation") ? 10 : growth ? 7 : recent.some(c=>c.kind==="interest") ? 4 : 0;
   const axes={impact:signal.impact,severity:signal.severity,urgency:signal.urgency,credibility:signal.credibility,proximity:scope==="local"?5:0,acceleration};
   const score=Object.values(axes).reduce((a,b)=>a+b,0);
   if(score<40) return null;
@@ -170,4 +168,31 @@ export function observe(old, event, received, now, comparable) {
   if (!before || old.updatedAt !== received.updatedAt || old.interest !== received.interest || !previouslySeen || observation.changes.length !== before.changes.length) observation.lastSeenAt=new Date(now).toISOString();
   observation.changes=observation.changes.slice(-24);
   return {...event,observations:observation};
+}
+
+function acceleratingCoverage(changes,now) {
+  const coverage=changes.filter(c=>c.kind==="coverage" && millis(c.at)<=now);
+  const lastSix=coverage.filter(c=>now-millis(c.at)<=6*HOUR).length;
+  const priorSix=coverage.filter(c=>now-millis(c.at)>6*HOUR && now-millis(c.at)<=12*HOUR).length;
+  return lastSix>=2 && lastSix>priorSix;
+}
+export function linkCorrection(event,prior,now,continuous) {
+  if (!continuous || event.editorialType!=="correction" || !event.supersedes || !prior ||
+    !(event.topicClaim || prior.topicClaim) || !prior.observations || prior.transient ||
+    millis(prior.observations.firstSeenAt)>=now-MINUTE || millis(event.updatedAt)<millis(prior.observations.firstSeenAt) ||
+    now-millis(event.updatedAt)>DAY || event.sources.length<2) return event;
+  const observations={...event.observations,changes:[...event.observations.changes]};
+  addChange(observations.changes,"correction",event.updatedAt,
+    "A published, cited correction identifies an earlier report already present on a prior scan.","correction:"+event.id);
+  return {...event,topicClaim:true,observations};
+}
+export function narrativeHot(event,now,location) {
+  if (!event.topicClaim || event.transient || event.source==="Reddit" || event.editorialType==="prediction" || !editorialConfidence(event)) return null;
+  const changes=(event.observations?.changes || []).filter(c=>now-millis(c.at)>=0 && now-millis(c.at)<=DAY);
+  const correction=changes.some(c=>c.kind==="correction");
+  if (!correction && !acceleratingCoverage(changes,now)) return null;
+  return {narrativeTrend:true,scope:scopeFor(event,location),
+    rank:correction?75:65,rankReasons:[correction ? "A cited correction supersedes a record already indexed on an earlier scan." :
+    "At least two new publisher domains added coverage in six hours, exceeding the prior six-hour count. Syndication is possible.",
+    "Ranking measures reporting activity. The underlying claim retains its own verification status."]};
 }

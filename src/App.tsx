@@ -48,6 +48,7 @@ import Watchlist, { LocationForm } from "./Watchlist";
 import {
   dateTime,
   relative,
+  staleScan,
   type EditorialType,
   type IntelEvent,
   type Page,
@@ -368,8 +369,12 @@ export default function App() {
   );
   const mapRows = mapped.filter((e) => !category || category === e.category);
   const fail = feed.error || (!online ? "You are offline." : "");
-  const last = feed.data.updatedAt;
-  const stale = last && Date.now() - Date.parse(last) > 1000 * 60 * 75;
+  const last = feed.data.intelligence?.lastScan || feed.data.updatedAt;
+  const stale =
+    last &&
+    (requestView === "signals"
+      ? staleScan(last)
+      : Date.now() - Date.parse(last) > 75 * 60_000);
   const loadMore = feed.data.nextCursor && (
     <button className="load-more" onClick={feed.loadMore} disabled={feed.more}>
       {feed.more ? "Loading…" : "Load more reports"}

@@ -1,4 +1,4 @@
-import { annotate, observe } from "./detection.mjs";
+import { annotate, observe, incidentKey, linkCorrection } from "./detection.mjs";
 import { addPoll } from "./baseline.mjs";
 import { collapseBulletins, signalDesk, retainEpisodeChanges } from "./signal-desk.mjs";
 import { createHash } from "node:crypto";
@@ -130,7 +130,8 @@ export async function collect({store=repository(),now=Date.now(),defs=definition
       if (newNotice && old.updatedAt>received.updatedAt) old=undefined;
       const combined=combine(old,received,stamp(now));
       if (newNotice) {combined.id=received.id;combined.publishedAt=received.publishedAt;}
-      const next=received.transient ? combined : observe(old,combined,received,now,continuous);
+      let next=received.transient ? combined : observe(old,combined,received,now,continuous);
+      if (received.editorialType==="correction") next=linkCorrection(next,pool.get(byUrl.get(received.supersedes?.url)),now,continuous);
       if(!old) observed.push(next);
       pool.set(next.id,next);
       byUrl.set(received.url,next.id);
@@ -224,7 +225,14 @@ export async function searchEvents(input={}, {store=repository(),now=Date.now(),
   if (params.id) {
     if (!validId(params.id)) return {...metadata,events:[],nextCursor:null};
     const archived=live.find(e=>e.id===params.id) || (await store.get(dayKey(params.id.slice(0,10)),{type:"json"}))?.find(e=>e.id===params.id);
-    return {...metadata,events:archived ? [responseEvent({...ranked(archived,now,params.location),intelligence:annotate(archived,now,params.location) || undefined},true)] : [],nextCursor:null};
+    if (!archived) return {...metadata,events:[],nextCursor:null};
+    let detail={...ranked(archived,now,params.location),intelligence:annotate(archived,now,params.location) || undefined};
+    if (archived.source==="National Weather Service") {
+      const key=incidentKey(archived);
+      const siblings=live.filter(e=>e.id!==archived.id && incidentKey(e)===key && Date.parse(e.expiresAt)>now);
+      detail=collapseBulletins([detail,...siblings])[0];
+    }
+    return {...metadata,events:[responseEvent(detail,true)],nextCursor:null};
   }
   if (params.view === "archive") return {...metadata,...await archivePage(store,state.days,params,now)};
   if (params.view==="signals" || params.view==="trending") {

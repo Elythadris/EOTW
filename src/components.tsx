@@ -4,6 +4,7 @@ import {
   ArrowUpRight,
   Bookmark,
   Check,
+  ChevronDown,
   ChevronRight,
   Clock3,
   Globe2,
@@ -313,6 +314,9 @@ export function ArticleDetail({
   ask: () => void;
   investigate: (q: string) => void;
 }) {
+  const bulletins = (e.bulletins || []).filter((notice) =>
+    sourceURL(notice.url),
+  );
   const sources = [
     ...new Map(
       [{ name: e.source, url: e.url }, ...e.sources]
@@ -349,6 +353,40 @@ export function ArticleDetail({
       </div>
       <div className="detail-grid">
         <div>
+          {bulletins.length > 0 &&
+            (e.bulletinCount || bulletins.length) > 1 && (
+              <section className="panel section-pad">
+                <h2>Area bulletins</h2>
+                <p>
+                  This warning groups {e.bulletinCount || bulletins.length}{" "}
+                  publisher notices. Open a notice to check the instructions for
+                  its area.
+                </p>
+                <details className="assessment-details">
+                  <summary>
+                    View publisher notices ({bulletins.length}){" "}
+                    <ChevronDown size={14} />
+                  </summary>
+                  <div>
+                    {bulletins.map((notice, index) => (
+                      <a
+                        key={notice.id + index}
+                        className="source-link"
+                        href={sourceURL(notice.url)}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        <span>
+                          {notice.location ||
+                            "Publisher bulletin " + (index + 1)}
+                        </span>
+                        <ArrowUpRight size={15} />
+                      </a>
+                    ))}
+                  </div>
+                </details>
+              </section>
+            )}
           {e.intelligence && (
             <section className="panel section-pad signal-dossier">
               <h2>

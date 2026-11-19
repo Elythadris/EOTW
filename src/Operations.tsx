@@ -132,6 +132,15 @@ export function StoryReview({
           </span>
         )}
         <span>{event.source}</span>
+        {rank !== undefined &&
+          (event.topicClaim || event.status === "speculation") && (
+            <span>
+              Narrative tracking · <Status value={event.status} />
+            </span>
+          )}
+        {!!event.bulletinCount && event.bulletinCount > 1 && (
+          <span>{event.bulletinCount} area bulletins</span>
+        )}
         <time dateTime={event.updatedAt} title={dateTime(event.updatedAt)}>
           {relative(event.updatedAt)}
         </time>

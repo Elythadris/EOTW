@@ -23,6 +23,7 @@ export function createFeedHandler(search = searchEvents) {
       const result = await search(params);
       const social =
         params.view === "rabbit" || params.scope === "conspiracy" || params.id;
+      const timeSensitive = params.view === "signals" || params.view === "trending";
       return json(
         result,
         200,
@@ -30,8 +31,9 @@ export function createFeedHandler(search = searchEvents) {
           ? {}
           : {
               "Cache-Control": "public, max-age=15",
-              "Netlify-CDN-Cache-Control":
-                "public, s-maxage=30, stale-while-revalidate=60, stale-if-error=86400",
+              "Netlify-CDN-Cache-Control": timeSensitive
+                ? "public, s-maxage=30, stale-while-revalidate=15, must-revalidate"
+                : "public, s-maxage=30, stale-while-revalidate=60, stale-if-error=86400",
               "Netlify-Vary": "query",
             },
       );

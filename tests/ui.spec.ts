@@ -3,6 +3,19 @@ import type { IntelEvent, Preferences } from "../src/types";
 
 const event: IntelEvent = {
   id: "fixture-report",
+  bulletinCount: 2,
+  bulletins: [
+    {
+      id: "notice-west",
+      location: "Western test zone",
+      url: "https://example.org/west",
+    },
+    {
+      id: "notice-east",
+      location: "Eastern test zone",
+      url: "https://example.org/east",
+    },
+  ],
   title: "Test bulletin for Maui",
   summary: "A controlled bulletin for testing the reading and saving flow.",
   url: "https://example.org/bulletin",
@@ -35,6 +48,7 @@ async function mockAPI(
   page: Page,
   events: IntelEvent[] = [event],
   pageSize = 100,
+  asOf?: string,
 ) {
   let prefs: Preferences = {
     saved: [],
@@ -62,7 +76,7 @@ async function mockAPI(
         (!p.get("scope") || ["all", e.scope].includes(p.get("scope")!)),
     );
     const start = Number(p.get("cursor") || 0);
-    const scan = new Date().toISOString();
+    const scan = asOf || new Date().toISOString();
     const sample = results[0];
     await r.fulfill({
       json: {
@@ -106,7 +120,7 @@ async function mockAPI(
           : {}),
         nextCursor:
           start + pageSize < results.length ? String(start + pageSize) : null,
-        updatedAt: new Date().toISOString(),
+        updatedAt: asOf || new Date().toISOString(),
         health: [
           {
             id: "fixture",
@@ -123,8 +137,8 @@ async function mockAPI(
       json: {
         location: new URL(r.request().url()).searchParams.get("location"),
         mode: "sources",
-        generatedAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+        generatedAt: asOf || new Date().toISOString(),
+        updatedAt: asOf || new Date().toISOString(),
         stale: false,
         notice: "",
         sections: {
@@ -177,7 +191,10 @@ test("open a source-backed story, save it and read its timeline from the watchli
   await expect(
     page.getByRole("heading", { name: "Command center", level: 1 }),
   ).toBeVisible();
-  await page.getByRole("link", { name: event.title }).first().click();
+  await page
+    .locator("#priority-signals")
+    .getByRole("link", { name: event.title, exact: true })
+    .click();
   await expect(page).toHaveURL(/\/story\/fixture-report$/);
   await expect(
     page.getByRole("heading", { name: event.title, level: 1 }),
@@ -188,6 +205,10 @@ test("open a source-backed story, save it and read its timeline from the watchli
   await expect(
     page.getByRole("link", { name: /Source 1 Fixture agency/ }),
   ).toHaveAttribute("href", event.url);
+  await page.getByText("View publisher notices (2)", { exact: true }).click();
+  await expect(
+    page.getByRole("link", { name: "Eastern test zone" }),
+  ).toHaveAttribute("href", "https://example.org/east");
   await page.getByRole("button", { name: "Save story", exact: true }).click();
   await expect(
     page.getByRole("button", { name: "Saved to watchlist" }),
@@ -459,11 +480,9 @@ test("regional scanner retrieves signals beyond the first page", async ({
   await expect(
     priorities.getByRole("link", { name: globalSignal.title }),
   ).toHaveCount(0);
-  const global = page
-    .locator(".region-cell")
-    .filter({
-      has: page.getByRole("heading", { name: "Global", exact: true }),
-    });
+  const global = page.locator(".region-cell").filter({
+    has: page.getByRole("heading", { name: "Global", exact: true }),
+  });
   await global.getByRole("button", { name: /Review signals/ }).click();
   await expect(
     priorities.getByRole("link", { name: globalSignal.title }),
@@ -475,4 +494,30 @@ test("regional scanner retrieves signals beyond the first page", async ({
   await expect(
     priorities.getByRole("link", { name: globalSignal.title }),
   ).toBeVisible();
+});
+
+test("old scans retain reports while marking risk and active warnings unknown", async ({
+  page,
+}) => {
+  await mockAPI(
+    page,
+    [event],
+    100,
+    new Date(Date.now() - 21 * 60_000).toISOString(),
+  );
+  await page.goto("/");
+  await expect(
+    page.locator(".region-state strong").filter({ hasText: "Unknown" }),
+  ).toHaveCount(3);
+  await expect(page.getByText("Current count unavailable")).toBeVisible();
+  await expect(
+    page.getByText(/Earlier assessment\. Source conditions may have changed/),
+  ).toBeVisible();
+  await expect(
+    page
+      .locator("#priority-signals")
+      .getByRole("link", { name: event.title, exact: true }),
+  ).toBeVisible();
+  await page.getByRole("link", { name: "Investigate lead report" }).click();
+  await expect(page).toHaveURL(/\/story\/fixture-report$/);
 });

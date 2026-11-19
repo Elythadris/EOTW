@@ -1,5 +1,5 @@
 import { DAY, fold, ranked } from "./model.mjs";
-import { annotate, incidentKey } from "./detection.mjs";
+import { annotate, incidentKey, narrativeHot } from "./detection.mjs";
 import { anomaliesFor } from "./baseline.mjs";
 
 const warningFor = e => /\bwarning\b/i.test(e.origin?.event || e.title);
@@ -103,6 +103,12 @@ export function signalDesk(live,state,health,now,location) {
   }
   const hotGroups=new Set(scored.filter(e=>e.intelligence.axes.acceleration>0 && (fresh(e.updatedAt,now,DAY) || e.observations?.changes?.some(c=>fresh(c.at,now,DAY)))).map(incidentKey));
   const hotEvents=events.filter(e=>hotGroups.has(incidentKey(e)) || latestByIncident.has(incidentKey(e))).sort((a,b)=>b.intelligence.axes.acceleration-a.intelligence.axes.acceleration || b.intelligence.score-a.intelligence.score);
+  const hazardIds=new Set(hotEvents.map(e=>e.id));
+  for (const e of candidates) {
+    if(hazardIds.has(e.id) || known.has(e.id) && !recentlyChecked.has(e.id)) continue;
+    const trend=narrativeHot(e,now,location);
+    if(trend) hotEvents.push({...e,...trend});
+  }
   const lastScan=state.lastSignalScan || state.updatedAt || null;
   const scopeOrder={local:0,us:1,global:2};
   events.sort((a,b)=>scopeOrder[a.scope]-scopeOrder[b.scope] || levels[b.intelligence.level]-levels[a.intelligence.level] || b.intelligence.score-a.intelligence.score || b.updatedAt.localeCompare(a.updatedAt));

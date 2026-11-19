@@ -74,6 +74,9 @@ export interface Situation {
   })[];
 }
 export interface IntelEvent {
+  topicClaim?: boolean;
+  bulletinCount?: number;
+  bulletins?: { id: string; location: string; url: string }[];
   intelligence?: SignalAssessment;
   alertArea?: { type: "MultiPolygon"; coordinates: number[][][][] };
   evidence?: { name: string; url: string; finding: string }[];
@@ -195,4 +198,9 @@ export function activePriority(e: IntelEvent) {
   if (Number.isFinite(end)) return end > Date.now();
   const latest = Date.parse(e.updatedAt);
   return Number.isFinite(latest) && Date.now() - latest < 86400000;
+}
+
+export function staleScan(timestamp: string | null | undefined) {
+  const time = Date.parse(timestamp || "");
+  return !Number.isFinite(time) || Date.now() - time > 20 * 60_000;
 }

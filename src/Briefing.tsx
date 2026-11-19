@@ -23,6 +23,7 @@ import { ClaimReview, OpsPanel, StoryLink, StoryReview } from "./Operations";
 import {
   dateTime,
   relative,
+  staleScan,
   sourceURL,
   type BriefPoint,
   type Feed,
@@ -150,7 +151,8 @@ export default function Briefing({
   const { prefs } = state;
   const intel = data.intelligence;
   const last = intel?.lastScan;
-  const known = !!last;
+  const known = !!last && Number.isFinite(Date.parse(last));
+  const scanOld = known && staleScan(last);
   const where = prefs.location;
   const situation = useSituation(where);
   const hot = useFeed({
@@ -185,6 +187,11 @@ export default function Briefing({
     setLimit((n) => n + 6);
   };
   const recent = situation.report;
+  const oldBrief =
+    !!recent &&
+    (recent.stale || staleScan(recent.updatedAt || recent.generatedAt));
+  const leadId =
+    recent?.citations.find((c) => c.eventId)?.eventId || signals[0]?.id;
   const lead = signals[0];
   const ok = data.health.filter((s) => s.status === "ok").length;
   const failures = data.health.filter((s) => s.status === "error").length;
@@ -192,16 +199,19 @@ export default function Briefing({
   const disabled = data.health.filter((s) => s.status === "disabled").length;
   const regions = useMemo(
     () =>
-      (["local", "us", "global"] as const).map(
-        (key) =>
-          intel?.regions?.find((r) => r.scope === key) || {
-            scope: key,
-            level: "unknown" as const,
-            reason: "No source scan is available for this area.",
-            eventIds: [] as string[],
-          },
-      ),
-    [intel],
+      (["local", "us", "global"] as const).map((key) => {
+        const record = intel?.regions?.find((r) => r.scope === key);
+        if (record && known && !scanOld) return record;
+        return {
+          scope: key,
+          level: "unknown" as const,
+          reason: scanOld
+            ? "The last scan is more than 20 minutes old. Current conditions are unknown."
+            : "No current source scan is available for this area.",
+          eventIds: record?.eventIds || [],
+        };
+      }),
+    [intel, known, scanOld],
   );
   const choose = (s: Scope) => {
     setScope(s);
@@ -223,11 +233,13 @@ export default function Briefing({
           </span>
           <strong>{data.health.length ? ok + " / " + enabled : "—"}</strong>
           <small>
-            {failures
-              ? failures + " unavailable"
-              : disabled
-                ? disabled + " disabled"
-                : "Reporting sources"}
+            {scanOld
+              ? "At last scan"
+              : failures
+                ? failures + " unavailable"
+                : disabled
+                  ? disabled + " disabled"
+                  : "Reporting sources"}
           </small>
         </button>
         <div>
@@ -243,7 +255,7 @@ export default function Briefing({
         <div>
           <span>
             <Crosshair size={14} />
-            Priority signals
+            {scanOld ? "Last known signals" : "Priority signals"}
           </span>
           <strong>{known ? intel!.alerts : "—"}</strong>
           <small>
@@ -257,12 +269,18 @@ export default function Briefing({
           </span>
           <strong
             className={
-              known && (intel?.activeWarnings || 0) > 0 ? "warn-number" : ""
+              known && !scanOld && (intel?.activeWarnings || 0) > 0
+                ? "warn-number"
+                : ""
             }
           >
-            {known ? (intel?.activeWarnings ?? "—") : "—"}
+            {known && !scanOld ? (intel?.activeWarnings ?? "—") : "—"}
           </strong>
-          <small>Official warnings in force</small>
+          <small>
+            {scanOld
+              ? "Current count unavailable"
+              : "Official warnings in force"}
+          </small>
         </div>
       </div>
       <div className="ops-lead-grid">
@@ -286,6 +304,12 @@ export default function Briefing({
                 </time>
               )}
             </div>
+            {oldBrief && (
+              <p className="brief-notice" role="status">
+                Earlier assessment. Source conditions may have changed since{" "}
+                {dateTime(recent?.updatedAt || recent?.generatedAt)}.
+              </p>
+            )}
             {recent &&
             Object.values(recent.sections).some((points) => points.length) ? (
               <>
@@ -344,7 +368,9 @@ export default function Briefing({
               <NoItems
                 title={
                   known
-                    ? "No significant developments detected"
+                    ? scanOld
+                      ? "No signals in the last scan"
+                      : "No significant developments detected"
                     : "Awaiting published reports"
                 }
                 detail={
@@ -354,8 +380,16 @@ export default function Briefing({
                 }
               />
             )}
+            {leadId && (
+              <a
+                className="brief-source"
+                href={"/story/" + encodeURIComponent(leadId)}
+              >
+                Investigate lead report <ArrowUpRight size={14} />
+              </a>
+            )}
             {recent?.notice && <p className="brief-notice">{recent.notice}</p>}
-            {(recent?.stale || situation.error) && (
+            {situation.error && (
               <p className="brief-notice">
                 {recent
                   ? "Showing the last available assessment."
@@ -432,7 +466,7 @@ export default function Briefing({
       <div className="ops-stream-grid">
         <div id="priority-signals">
           <OpsPanel
-            title="Priority signals"
+            title={scanOld ? "Last known priority signals" : "Priority signals"}
             icon={<Crosshair size={19} />}
             reveal={reveal}
             count={

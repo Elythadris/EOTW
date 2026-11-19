@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { record, combine, DAY, HOUR } from "../server/feeds/model.mjs";
 import { usgs,nws } from "../server/feeds/providers.mjs";
-import { annotate,incidentKey,nwsKeys,observe } from "../server/feeds/detection.mjs";
+import { annotate,incidentKey,nwsKeys,observe,linkCorrection } from "../server/feeds/detection.mjs";
 import { signalDesk,retainEpisodeChanges } from "../server/feeds/signal-desk.mjs";
 import { addPoll,anomaliesFor } from "../server/feeds/baseline.mjs";
 import { parseFeedParams } from "../server/feeds/store.mjs";
@@ -104,4 +104,20 @@ test("only editor-supplied cited findings acquire an evidence label",()=>{
     publishedAt:"2026-06-14T08:00:00Z",updatedAt:"2026-06-14T09:00:00Z",sources:[source],evidence:[{...source,finding:"The document records a public meeting."}]};
   const e=record(editorialRows(JSON.stringify([item]),now)[0],now);assert.equal(e.evidence[0].url,source.url);
   assert.throws(()=>editorialRows(JSON.stringify([{...item,counterevidence:[{...source,url:"https://example.org/other",finding:"Visibility was limited."}]}]),now),/listed source/);
+});
+
+test("credible accelerating narrative coverage stays out of threat counts",()=>{
+  let source=sample({topicClaim:true,title:"A review of an unusual public claim",url:"https://www.factcheck.org/claim",status:"developing"});
+  source=observe(null,source,source,now-HOUR,true);
+  const correction=sample({editorialType:"correction",topicClaim:true,title:"Correction to the indexed claim",url:"https://github.com/Elythadris/EOTW/blob/main/editorial/reports/fixture.md",
+    supersedes:{name:source.source,url:source.url},sources:[{name:source.source,url:source.url}],publishedAt:now-60000});
+  const correctionEvent=observe(null,correction,correction,now,true);
+  const joined=linkCorrection(correctionEvent,source,now,true);
+  const result=desk([source,joined]);
+  assert.equal(result.intelligence.alerts,0);
+  assert.equal(result.hotEvents.length,1);
+  assert.equal(result.hotEvents[0].narrativeTrend,true);
+  assert.equal(result.hotEvents[0].intelligence,undefined);
+  assert.equal(linkCorrection(correctionEvent,source,now,false).observations.changes.length,0);
+  assert.equal(desk([{...joined,source:"Reddit",transient:true}]).hotEvents.length,0);
 });
