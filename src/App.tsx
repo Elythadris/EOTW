@@ -630,6 +630,7 @@ export default function App() {
                 <section className="panel full-map">
                   <EventMap
                     events={mapRows}
+                    focusScope={scope === "all" || scope === "conspiracy" ? undefined : scope}
                     onSelect={open}
                     scanAt={
                       feed.data.intelligence?.lastScan || feed.data.updatedAt

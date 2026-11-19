@@ -238,7 +238,7 @@ export default function EventMap({ events, onSelect, compact = false, scanAt = n
   useEffect(() => { if (picked) closePanel.current?.focus({ preventScroll: true }); }, [picked]);
 
   const all = useMemo(() => makePoints(events, Date.now()), [events, scanAt]);
-  const scoped = useMemo(() => scope === "global" ? all : all.filter(p => p.event.scope === scope), [all, scope]);
+  const scoped = useMemo(() => focusScope ? all.filter(p => p.event.scope === focusScope) : all, [all, focusScope]);
   const points = useMemo(() => scoped.filter(p => !hidden.includes(p.kind)), [scoped, hidden]);
   const areas = useMemo(() => points.filter(p => p.area), [points]);
   const base = Math.max(0.1, Math.min((size.w - 14) / globeWidth, (size.h - 14) / globeHeight));
@@ -355,7 +355,7 @@ export default function EventMap({ events, onSelect, compact = false, scanAt = n
       <div className="eotw-controls" role="group" aria-label="Map zoom">
         <button type="button" aria-label="Zoom out" title="Zoom out" disabled={target.k <= 1.01} onClick={() => zoom(1 / 1.7)}><Minus size={16}/></button>
         <button type="button" aria-label="Zoom in" title="Zoom in" disabled={target.k >= 36} onClick={() => zoom(1.7)}><Plus size={16}/></button>
-        {scope === "global" && local.length > 0 && <button type="button" aria-label="Focus local reports" title="Focus local reports" onClick={() => center(local, 18, "Local area")}><Crosshair size={16}/></button>}
+        {!focusScope && local.length > 0 && <button type="button" aria-label="Focus local reports" title="Focus local reports" onClick={() => center(local, 18, "Local area")}><Crosshair size={16}/></button>}
         <button type="button" aria-label="Reset world view" title="Reset world view" disabled={target.k <= 1.01} onClick={() => { clear(); setViewName("World"); setManual(world); }}><Maximize size={15}/></button>
       </div>
     </div>

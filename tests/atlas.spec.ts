@@ -104,6 +104,8 @@ test("briefing regions load their own mapped reports and restore the world exten
   await focus.getByRole("button", { name: "Global", exact: true }).click();
   await expect(page.getByRole("article", { name: "Global assessment" })).toBeVisible();
   await expect(marker(/Japan public advisory/)).toBeVisible();
+  await expect(marker(/reports near Maui/)).toHaveCount(0);
+  await expect(marker(/Oregon public advisory/)).toHaveCount(0);
   await expect(atlas.getByRole("button", { name: "Reset world view" })).toBeDisabled();
 });
 
