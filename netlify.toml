@@ -1,37 +1,12 @@
 [build]
-  # Published editorial records are ingested on the collector schedule.
-  ignore = '''test -n "$CACHED_COMMIT_REF" && test "$CACHED_COMMIT_REF" != "$COMMIT_REF" && git diff --quiet "$CACHED_COMMIT_REF" "$COMMIT_REF" -- . ':(exclude,glob)editorial/**' '''
-  command = "npm test && npm run build"
-  publish = "dist"
-  functions = "netlify/functions"
-
-[context.deploy-preview]
-  command = "npm test && npm run build && npx playwright install chromium --only-shell && npm run test:ui"
+  command = "npx playwright install chromium --only-shell && node qa/capture.mjs"
+  publish = "screenshots"
+  functions = "qa/empty-functions"
 
 [build.environment]
   NODE_VERSION = "24"
 
-[functions]
-  node_bundler = "esbuild"
-
-[functions."story"]
-  included_files = ["dist/index.html"]
-
-[[redirects]]
-  from = "/*"
-  to = "/index.html"
-  status = 200
-
 [[headers]]
   for = "/*"
   [headers.values]
-    X-Content-Type-Options = "nosniff"
-    X-Frame-Options = "DENY"
-    Referrer-Policy = "strict-origin-when-cross-origin"
-    Permissions-Policy = "camera=(), microphone=(), geolocation=()"
-    Content-Security-Policy = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'"
-
-[[headers]]
-  for = "/assets/*"
-  [headers.values]
-    Cache-Control = "public, max-age=31536000, immutable"
+    X-Robots-Tag = "noindex"
