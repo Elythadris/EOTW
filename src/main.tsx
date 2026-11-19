@@ -21,6 +21,5 @@ class ReaderBoundary extends React.Component<{children:React.ReactNode},{failed:
     return this.props.children
   }
 }
-if(!routeIdentityCallback()){
-  createRoot(document.getElementById('root')!).render(<ReaderBoundary><App/></ReaderBoundary>)
-}
+routeIdentityCallback()
+createRoot(document.getElementById('root')!).render(<ReaderBoundary><App/></ReaderBoundary>)

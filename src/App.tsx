@@ -7,7 +7,7 @@ import { useFeed, usePreferences } from './data'
 import EventMap from './EventMap'
 import Research from './Research'
 import Watchlist, { LocationForm } from './Watchlist'
-import { dateTime, relative, type IntelEvent, type Page, type Scope } from './types'
+import { activePriority, dateTime, relative, type IntelEvent, type Page, type Scope } from './types'
 
 const menu = [
   {page:'briefing',path:'/',label:'Command center',icon:LayoutDashboard},
@@ -22,7 +22,7 @@ const menu = [
 const paths=Object.fromEntries(menu.map(x=>[x.page,x.path]))
 const headings:Record<string,[string,string]> = {
   briefing:['Command center','Your local, national, and global briefing.'],
-  map:['Live map','Explore natural hazards with published coordinates and trace each marker to its source.'],
+  map:['Live map','Explore located reports and trace each marker to its source.'],
   trending:['Trending 24h','Reports gaining attention in the past 24 hours.'],
   rabbit:['Rabbit hole','Trace unusual reports, emerging theories, and the evidence behind each claim.'],
   investigate:['Investigate','Search the archive and follow the evidence across reports.'],
@@ -95,7 +95,7 @@ export default function App(){
   useEffect(()=>{
     if(!prefs.notifications){seenAlerts.current=null;return}
     if(!personalFeed.updatedAt)return
-    const matched=personalFeed.events.filter(e=>e.severity==='high'&&(e.scope==='local'||prefs.saved.includes(e.id)||prefs.topics.some(t=>(e.title+' '+e.summary+' '+e.category).toLowerCase().includes(t.toLowerCase()))))
+    const matched=personalFeed.events.filter(e=>activePriority(e)&&(e.scope==='local'||prefs.saved.includes(e.id)||prefs.topics.some(t=>(e.title+' '+e.summary+' '+e.category).toLowerCase().includes(t.toLowerCase()))))
     const sig=(e:IntelEvent)=>e.id+'|'+e.updatedAt
     if(seenAlerts.current===null){seenAlerts.current=new Set(matched.map(sig));return}
     const fresh=matched.filter(e=>!seenAlerts.current!.has(sig(e)))
@@ -123,14 +123,14 @@ export default function App(){
         {headings[page]&&<div className="page-head"><div className="page-heading-copy"><div className="dateline"><span/>{new Intl.DateTimeFormat('en-US',{weekday:'short',month:'short',day:'numeric',year:'numeric'}).format(new Date())}</div><h1>{headings[page][0]}</h1><p>{headings[page][1]}</p></div>
           {loadPage&&page!=='investigate'&&<div className="freshness"><span><i className={last&&!fail&&!stale?'good':''}/>{fail?'Feed unavailable':last?'Last collection':'Awaiting collection'}</span>{last&&<time dateTime={last} title={dateTime(last)}>{relative(last)}</time>}</div>}</div>}
         {page==='briefing'&&<Briefing data={feed.data} busy={feed.busy} state={prefsState} open={open} save={save} go={go} setLocation={()=>setPlace(true)}/>}
-        {page==='map'&&<><div className="map-tools"><FilterBar scope={scope} set={setScope}/><label>Category<select value={category} onChange={e=>setCategory(e.target.value)}><option value="">All categories</option>{[...new Set(mapped.map(e=>e.category))].sort().map(c=><option key={c}>{c}</option>)}</select></label></div><section className="panel full-map"><EventMap events={mapRows} onSelect={open}/><div className="map-caption"><span><i className="map-dot"/>{mapRows.length} located reports in this view</span><span>Published coordinates</span></div></section><section className="panel"><PanelHeading icon={<MapPin size={18}/>}>Mapped reports</PanelHeading>{list(mapRows,'No located reports in this view')}{loadMore}</section></>}
+        {page==='map'&&<><div className="map-tools"><FilterBar scope={scope} set={setScope}/><label>Category<select value={category} onChange={e=>setCategory(e.target.value)}><option value="">All categories</option>{[...new Set(mapped.map(e=>e.category))].sort().map(c=><option key={c}>{c}</option>)}</select></label></div><section className="panel full-map"><EventMap events={mapRows} onSelect={open}/><div className="map-caption"><span><i className="map-dot"/>{mapRows.length} located reports in this view</span><span>Hazard coordinates · News reporting areas</span></div></section><section className="panel"><PanelHeading icon={<MapPin size={18}/>}>Mapped reports</PanelHeading>{list(mapRows,'No located reports in this view')}{loadMore}</section></>}
         {(page==='trending'||page==='rabbit'||page==='archive')&&<>{page==='archive'&&<SearchBox label="Search the archive" defaultValue={query} submit={q=>lookup(q,'archive')}/>}<div className="list-tools"><FilterBar scope={scope} set={setScope} conspiracy={page==='trending'}/></div>
           {page==='rabbit'&&<div className="editor-note"><ShieldCheck size={19}/><p><strong>Evidence policy</strong> Claim tracking records who said what, when, and where it was published. Each report carries a verification label.</p></div>}
           {page==='trending'&&<details className="method"><summary>How are stories ranked?</summary><p>Ranking uses published signals such as recency, severity, source coverage, and observed discussion. Each story lists the factors available for its ranking.</p></details>}
           <section className="panel"><PanelHeading icon={page==='trending'?<TrendingUp size={18}/>:page==='archive'?<Database size={18}/>:<Layers size={18}/>}>{page==='trending'?'Ranked reports':query?'Search results':page==='archive'?'Historical reports':'Claim tracker'}</PanelHeading>{list(events,'No reports match this view',page==='trending')}{loadMore}</section></>}
         {page==='investigate'&&<><Research key={query} query={query} events={events} busy={feed.busy} submit={q=>lookup(q)} open={open} saved={prefs.saved} save={save} ask={()=>setAsk(true)}/>{loadMore}</>}
         {page==='watchlist'&&<Watchlist state={prefsState} open={open} notify={setMessage}/>}
-        {page==='health'&&<section className="panel"><PanelHeading icon={<Activity size={18}/>}>Provider status</PanelHeading>{feed.data.health.length?<div className="health-grid">{feed.data.health.map(s=><article key={s.id}><div><h3>{s.name}</h3><span className={'health-tag '+s.status}>{s.status==='ok'?'Healthy':s.status==='error'?'Unavailable':s.status==='disabled'?'Disabled':'Pending'}</span></div><small>Last successful check</small><time dateTime={s.lastSuccess||undefined}>{s.lastSuccess?dateTime(s.lastSuccess):'No successful check recorded'}</time>{s.detail&&<p>{s.detail}</p>}</article>)}</div>:feed.busy?<Skeleton/>:<NoItems title="Provider checks pending" detail="The collector records the outcome of each source check."/>}</section>}
+        {page==='health'&&<section className="panel"><PanelHeading icon={<Activity size={18}/>}>Provider status</PanelHeading>{feed.data.health.length?<div className="health-grid">{feed.data.health.map(s=><article key={s.id}><div><h3>{s.name}</h3><span className={'health-tag '+s.status}>{s.status==='ok'?'Healthy':s.status==='error'?'Unavailable':s.status==='disabled'?'Disabled':'Pending'}</span></div><small>Last successful check</small><time dateTime={s.lastSuccess||undefined}>{s.lastSuccess?dateTime(s.lastSuccess):'No successful check recorded'}</time>{s.intervalMinutes&&<p>Checks every {s.intervalMinutes} min</p>}{s.detail&&<p>{s.detail}</p>}</article>)}</div>:feed.busy?<Skeleton/>:<NoItems title="Provider checks pending" detail="The collector records the outcome of each source check."/>}</section>}
         {isStory&&<><a className="back-link" href="/" onClick={e=>intercept(e,'/')}><ArrowLeft size={15}/>Command center</a>{selected?<ArticleDetail e={selected} saved={prefs.saved.includes(selected.id)} save={()=>save(selected)} ask={()=>setAsk(true)} investigate={q=>lookup(q)}/>:feed.busy&&!!id?<Skeleton/>:<NoItems title="Story unavailable" detail="Search the archive for its title or try again after the next update."/>}</>}
         {page==='missing'&&<section className="panel section-pad"><h1>Page unavailable</h1><a href="/" onClick={e=>intercept(e,'/')}>Return to command center</a></section>}
       </div></main></div>

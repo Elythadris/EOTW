@@ -14,6 +14,10 @@ export interface IntelEvent {
   lat: number | null
   lon: number | null
   status: 'confirmed' | 'developing' | 'speculation'
+  coordinatePrecision?: 'source-point'|'source-boundary'|'country'|'region'
+  mapNote?: string
+  expiresAt?: string|null
+  severityReason?: string
   severity: 'high' | 'moderate' | 'routine'
   sources: { name: string, url: string }[]
   timeline: { at: string, text: string }[]
@@ -26,6 +30,7 @@ export interface SourceHealth {
   status: 'ok' | 'error' | 'disabled' | 'pending'
   lastSuccess: string | null
   detail?: string
+  intervalMinutes?: number
 }
 export interface Feed { events: IntelEvent[], health: SourceHealth[], updatedAt: string | null, nextCursor?: string | null }
 export interface Message { role: 'user' | 'assistant', text: string }
@@ -60,4 +65,11 @@ export function messageText(message: Message): {body: string, citations: Citatio
     } catch { /* Older histories contain plain text. */ }
   }
   return {body: message.text, citations: []}
+}
+export function activePriority(e: IntelEvent) {
+  if(e.severity!=='high')return false
+  const end=Date.parse(e.expiresAt||'')
+  if(Number.isFinite(end))return end>Date.now()
+  const latest=Date.parse(e.updatedAt)
+  return Number.isFinite(latest) && Date.now()-latest<86400000
 }
