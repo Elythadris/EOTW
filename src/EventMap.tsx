@@ -20,7 +20,7 @@ const land = feature(atlas, atlas.objects.countries).features.map(
   (country) => ({
     id: String(country.id),
     d: path(country) || "",
-    name: String(country.properties?.name ?? ""),
+    name: String((country.properties as { name?: string } | null)?.name ?? ""),
     center: projection(geoCentroid(country)),
     area: geoArea(country),
   }),
