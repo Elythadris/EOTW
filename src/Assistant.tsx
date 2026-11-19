@@ -123,7 +123,12 @@ export default function Assistant({
           question: input,
           location: state.prefs.location,
           storyId: story?.id,
-          filters: { view: page, scope, ...(category ? { category } : {}), ...(query ? { q: query } : {}) },
+          filters: {
+            view: page,
+            scope,
+            ...(category ? { category } : {}),
+            ...(query ? { q: query } : {}),
+          },
           history: previous,
         }),
       });
@@ -172,7 +177,11 @@ export default function Assistant({
     ? "What evidence supports this report?"
     : query
       ? "What does the archive report about " + query + "?"
-      : page === "signals" ? "What changed in the priority signals near " + state.prefs.location + "?" : "What are the latest reports near " + state.prefs.location + "?";
+      : page === "signals"
+        ? "What changed in the priority signals near " +
+          state.prefs.location +
+          "?"
+        : "What are the latest reports near " + state.prefs.location + "?";
   const submit = (e: FormEvent) => {
     e.preventDefault();
     void send(question);
@@ -185,7 +194,11 @@ export default function Assistant({
           ? "Analyst · Selected story"
           : query
             ? "Analyst · Investigating " + query
-            : (page === "map" ? "Analyst · Map" + (category ? " · " + category : "") : "Intelligence analyst") + " · " + state.prefs.location}
+            : (page === "map"
+                ? "Analyst · Map" + (category ? " · " + category : "")
+                : "Intelligence analyst") +
+              " · " +
+              state.prefs.location}
       </div>
       <div className="chat-log" role="log" aria-label="Conversation">
         {!history.length && (
@@ -195,13 +208,23 @@ export default function Assistant({
             </span>
             <h3>Ask the intelligence analyst</h3>
             <p>
-              Investigate priority signals, compare source accounts, or trace a claim through the archive. Answers link back to the available evidence.
+              Investigate priority signals, compare source accounts, or trace a
+              claim through the archive. Answers link back to the available
+              evidence.
             </p>
             <button className="prompt" onClick={() => void send(start)}>
               {start}
               <CornerDownLeft size={16} />
             </button>
-            {page === "signals" && <button className="prompt" onClick={()=>void send("What should I monitor next?")}>What should I monitor next?<CornerDownLeft size={16}/></button>}
+            {page === "signals" && (
+              <button
+                className="prompt"
+                onClick={() => void send("What should I monitor next?")}
+              >
+                What should I monitor next?
+                <CornerDownLeft size={16} />
+              </button>
+            )}
           </div>
         )}
         {history.map((m, i) => {

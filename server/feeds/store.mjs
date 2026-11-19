@@ -231,7 +231,7 @@ export async function searchEvents(input={}, {store=repository(),now=Date.now(),
     const desk=signalDesk(live,state,health,now,params.location);
     const selected=(params.view==="signals"?desk.events:desk.hotEvents).filter(e=>matches(e,params));
     const start=/^\d{1,6}$/.test(params.cursor || "") ? Number(params.cursor) : 0;
-    return {...metadata,...(params.view==="signals"?{intelligence:desk.intelligence}:{}),
+    return {...metadata,total:selected.length,...(params.view==="signals"?{intelligence:desk.intelligence}:{}),
       events:selected.slice(start,start+params.limit).map(e=>responseEvent(e,false)),
       nextCursor:start+params.limit<selected.length ? String(start+params.limit) : null};
   }

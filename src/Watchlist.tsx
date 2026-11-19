@@ -249,22 +249,20 @@ export default function Watchlist({
             <span className="count">{prefs.saved.length}</span>
           </div>
           {prefs.saved.length ? (
-            prefs.saved
-              .slice(0, limit)
-              .map((id) => (
-                <SavedRecord
-                  key={id}
-                  id={id}
-                  location={prefs.location}
-                  open={open}
-                  remove={() =>
-                    change((p) => ({
-                      ...p,
-                      saved: p.saved.filter((x) => x !== id),
-                    }))
-                  }
-                />
-              ))
+            prefs.saved.slice(0, limit).map((id) => (
+              <SavedRecord
+                key={id}
+                id={id}
+                location={prefs.location}
+                open={open}
+                remove={() =>
+                  change((p) => ({
+                    ...p,
+                    saved: p.saved.filter((x) => x !== id),
+                  }))
+                }
+              />
+            ))
           ) : (
             <NoItems
               icon="saved"
@@ -303,7 +301,9 @@ export default function Watchlist({
             Significant alerts
           </h2>
           <p>
-            Notify me about new elevated or high-priority signals and material escalations affecting my location, saved stories, or followed topics while EOTW is open.
+            Notify me about new elevated or high-priority signals and material
+            escalations affecting my location, saved stories, or followed topics
+            while EOTW is open.
           </p>
           <button
             className={"secondary " + (prefs.notifications ? "switch-on" : "")}

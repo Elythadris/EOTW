@@ -27,18 +27,20 @@ function relatedReports(signals) {
 function region(scope,events,health,lastScan,now,location) {
   const affected=events.filter(e=>e.scope===scope);
   const isMaui=fold(location).startsWith("maui");
-  const ids=scope==="us"?["nws-us","usgs","justice"]:scope==="global"?["usgs","eonet","voices","gdelt"]:isMaui?["maui","nws-hi","hiema"]:[];
-  const coverage=ids.filter(id=>health.some(h=>h.id===id && h.status==="ok")).length;
+  const serviceOK=id=>health.some(h=>h.id===id && h.status==="ok");
+  const adequate=scope==="local" ? isMaui && serviceOK("nws-hi") && serviceOK("maui-mema")
+    : scope==="us" ? serviceOK("nws-us") && serviceOK("usgs") && ["justice","federal","conversation"].some(serviceOK)
+    : serviceOK("usgs") && serviceOK("eonet") && ["voices","gdelt","guardian"].some(serviceOK);
   const freshScan=fresh(lastScan,now,20*60000);
   const references=affected.slice(0,4).map(e=>e.id);
-  if (!freshScan) return {scope,level:"unknown",eventIds:references,reason:"No successful collection in the last 20 minutes."};
+  if (!freshScan) return {scope,count:affected.length,level:"unknown",eventIds:references,reason:"No successful collection in the last 20 minutes."};
   if (!affected.length) {
-    return {scope,level:coverage>=2?"quiet":"unknown",eventIds:[],
-      reason:coverage>=2?"No current record from the monitored sources meets the significance rules.":"Coverage is too limited to assess this area."};
+    return {scope,count:0,level:adequate?"quiet":"unknown",eventIds:[],
+      reason:adequate?"No current record from the monitored sources meets the significance rules.":"Coverage is too limited to assess this area."};
   }
   const top=affected[0];
-  const partial=coverage<2 ? " Regional coverage is limited." : "";
-  return {scope,level:top.intelligence.level,eventIds:references,reason:"Highest individual signal: "+top.intelligence.category+". "+affected.length+" distinct monitored incident"+(affected.length===1?"":"s")+" in this scope. Region labels describe the strongest specific report."+partial};
+  const partial=!adequate ? " Regional coverage is limited." : "";
+  return {scope,count:affected.length,level:top.intelligence.level,eventIds:references,reason:"Highest individual signal: "+top.intelligence.category+". "+affected.length+" distinct monitored incident"+(affected.length===1?"":"s")+" in this scope. Region labels describe the strongest specific report."+partial};
 }
 export function collapseBulletins(events) {
   const groups=new Map();

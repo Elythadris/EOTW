@@ -17,10 +17,10 @@ const cap=(extra={})=>sample({source:"National Weather Service",url:"https://api
 const quake=(m,extra={})=>sample({source:"USGS",url:"https://earthquake.usgs.gov/earthquakes/eventpage/test",category:"Earthquake",title:"M "+m+" earthquake",
   severity:m>=6?"high":"routine",status:"confirmed",origin:{magnitude:m,pager:"green"},...extra});
 const ok=id=>({id,status:"ok",lastSuccess:iso(now),intervalMinutes:5});
-const desk=(rows,state={})=>signalDesk(rows,{lastSignalScan:iso(now),...state},["usgs","nws-hi","maui","nws-us","eonet","voices"].map(ok),now,"Maui");
+const desk=(rows,state={})=>signalDesk(rows,{lastSignalScan:iso(now),...state},["usgs","nws-hi","maui","maui-mema","nws-us","eonet","voices"].map(ok),now,"Maui");
 test("signal gates retain documented civilian effects while rejecting routine, stale and speculative reports",()=>{
-  for(const title of ["County meeting scheduled","The risk of a bank failure","Could a cyberattack disrupt hospitals?","Drill: mandatory evacuation order","Routine maintenance notice"]) assert.equal(annotate(sample({title}),now),null);
-  for(const [title,category] of [["Ransomware attack disrupts hospital operations","Cyber disruption"],["Government imposes capital controls","Economic disruption"],["Ceasefire collapses in Moldova","Conflict and civilians"],["City orders mandatory evacuation","Civil emergency"]]) {
+  for(const title of ["County meeting scheduled","The risk of a bank failure","Could a cyberattack disrupt hospitals?","Drill: mandatory evacuation order","Routine maintenance notice","Unsafe Water Advisory rescinded for Kula","Road closed for scheduled resurfacing","Anniversary of the 1990s conflict"]) assert.equal(annotate(sample({title}),now),null);
+  for(const [title,category] of [["Ransomware attack disrupts hospital operations","Cyber disruption"],["Government imposes capital controls","Economic disruption"],["Ceasefire collapses in Moldova","Conflict and civilians"],["City orders mandatory evacuation","Civil emergency"],["Unsafe Water Advisory issued for Kula supply zone","Water safety"],["County road closed due to landslide","Transport disruption"],["Curfew imposed following protests","Civil unrest"],["Fighting displaces thousands in Moldova","Conflict and civilians"],["Countries sign peace accord","Diplomatic change"]]) {
     const result=annotate(sample({title}),now);assert.equal(result.category,category);assert.ok(result.score>=40);assert.ok(result.monitor);
   }
   assert.equal(annotate(sample({title:"Government imposes capital controls",url:"https://unknown.example/news"}),now),null);
@@ -75,6 +75,7 @@ test("the Hot 24 coverage test needs measured growth; reporting domains and same
 test("current quiet coverage differs from a source outage; co-occurrences disclose uncertainty",()=>{
   const fresh=desk([]);
   assert.equal(fresh.intelligence.regions[0].level,"quiet");
+  assert.equal(signalDesk([],{lastSignalScan:iso(now)},["maui","hiema","voices"].map(ok),now,"Maui").intelligence.regions[0].level,"unknown");
   assert.ok(signalDesk([],{},[],now,"Maui").intelligence.regions.every(r=>r.level==="unknown"));
   const a=sample({title:"Mandatory evacuation ordered",url:"https://apnews.com/a",location:"Moldova",scope:"global"});
   const b=sample({title:"Evacuation orders issued in Moldova",url:"https://www.reuters.com/b",location:"Moldova",scope:"global"});

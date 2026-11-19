@@ -349,14 +349,41 @@ export function ArticleDetail({
       </div>
       <div className="detail-grid">
         <div>
-          {e.intelligence && <section className="panel section-pad signal-dossier">
-            <h2>Signal assessment <span className={"level level-"+e.intelligence.level}>{e.intelligence.level}</span></h2>
-            <dl><dt>Why it matters</dt><dd>{e.intelligence.why}</dd><dt>Monitor next</dt><dd>{e.intelligence.monitor}</dd></dl>
-            <details className="baseline"><summary>Priority score · {e.intelligence.score}</summary>
-              <ul>{e.intelligence.reasons.map((r,i)=><li key={i}>{r}</li>)}</ul>
-              {e.intelligence.axes && <div className="axes">{Object.entries(e.intelligence.axes).filter(([,v])=>typeof v==="number").map(([label,v])=><span key={label}>{label} <b>{v}</b></span>)}</div>}
-            </details>
-          </section>}
+          {e.intelligence && (
+            <section className="panel section-pad signal-dossier">
+              <h2>
+                Signal assessment{" "}
+                <span className={"level level-" + e.intelligence.level}>
+                  {e.intelligence.level}
+                </span>
+              </h2>
+              <dl>
+                <dt>Why it matters</dt>
+                <dd>{e.intelligence.why}</dd>
+                <dt>Monitor next</dt>
+                <dd>{e.intelligence.monitor}</dd>
+              </dl>
+              <details className="baseline">
+                <summary>Priority score · {e.intelligence.score}</summary>
+                <ul>
+                  {e.intelligence.reasons.map((r, i) => (
+                    <li key={i}>{r}</li>
+                  ))}
+                </ul>
+                {e.intelligence.axes && (
+                  <div className="axes">
+                    {Object.entries(e.intelligence.axes)
+                      .filter(([, v]) => typeof v === "number")
+                      .map(([label, v]) => (
+                        <span key={label}>
+                          {label} <b>{v}</b>
+                        </span>
+                      ))}
+                  </div>
+                )}
+              </details>
+            </section>
+          )}
           <section className="panel section-pad">
             <h2>Report summary</h2>
             <p>
@@ -393,15 +420,22 @@ export function ArticleDetail({
         <div>
           <section className="panel section-pad">
             <h2>Sources &amp; evidence</h2>
-            {e.editorialType === "correction" && e.supersedes && sourceURL(e.supersedes.url) && (
-              <a className="source-link" href={sourceURL(e.supersedes.url)} target="_blank" rel="noreferrer">
-                <span>
-                  <small>Report being corrected</small>
-                  {e.supersedes.name}
-                </span>
-                <ArrowUpRight size={16} />
-              </a>
-            )}
+            {e.editorialType === "correction" &&
+              e.supersedes &&
+              sourceURL(e.supersedes.url) && (
+                <a
+                  className="source-link"
+                  href={sourceURL(e.supersedes.url)}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  <span>
+                    <small>Report being corrected</small>
+                    {e.supersedes.name}
+                  </span>
+                  <ArrowUpRight size={16} />
+                </a>
+              )}
             {sources.length ? (
               sources.map((s, i) => (
                 <a
@@ -422,12 +456,32 @@ export function ArticleDetail({
               <p>Source link unavailable.</p>
             )}
           </section>
-          {[["Supporting evidence", e.evidence], ["Counterevidence", e.counterevidence]].map(([title, records]) =>
-            Array.isArray(records) && records.length ? <section className="panel section-pad" key={String(title)}>
-              <h2>{String(title)}</h2>{records.filter(r=>sourceURL(r.url)).map((r,i)=><div className="documented-finding" key={i}>
-                <p>{r.finding}</p><a className="brief-source" href={sourceURL(r.url)} target="_blank" rel="noreferrer">{r.name}<ArrowUpRight size={13}/></a>
-              </div>)}
-            </section> : null)}
+          {[
+            ["Supporting evidence", e.evidence],
+            ["Counterevidence", e.counterevidence],
+          ].map(([title, records]) =>
+            Array.isArray(records) && records.length ? (
+              <section className="panel section-pad" key={String(title)}>
+                <h2>{String(title)}</h2>
+                {records
+                  .filter((r) => sourceURL(r.url))
+                  .map((r, i) => (
+                    <div className="documented-finding" key={i}>
+                      <p>{r.finding}</p>
+                      <a
+                        className="brief-source"
+                        href={sourceURL(r.url)}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        {r.name}
+                        <ArrowUpRight size={13} />
+                      </a>
+                    </div>
+                  ))}
+              </section>
+            ) : null,
+          )}
           <section className="panel section-pad">
             <h2>Reporting context</h2>
             <p>Latest recorded update</p>

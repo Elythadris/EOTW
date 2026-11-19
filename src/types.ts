@@ -9,7 +9,11 @@ export type Page =
   | "archive"
   | "health"
   | "story";
-export type EditorialType = "original" | "investigation" | "prediction" | "correction";
+export type EditorialType =
+  | "original"
+  | "investigation"
+  | "prediction"
+  | "correction";
 
 export type SignalLevel = "watch" | "elevated" | "high";
 export interface SignalAssessment {
@@ -26,20 +30,30 @@ export interface SignalAssessment {
 export interface Intelligence {
   scanned: number;
   alerts: number;
+  activeWarnings?: number;
   lastScan: string | null;
   regions: {
     scope: Exclude<Scope, "all">;
     level: SignalLevel | "quiet" | "unknown";
     reason: string;
+    count?: number;
     eventIds: string[];
   }[];
   escalations: { eventId: string; at: string; description: string }[];
-  anomalies: { label: string; description: string; eventIds: string[]; confidence: string }[];
+  anomalies: {
+    label: string;
+    description: string;
+    eventIds: string[];
+    confidence: string;
+  }[];
   baselineNote: string;
   hotIds: string[];
   related: { eventIds: string[]; reason: string }[];
 }
-export interface BriefPoint { text: string; citationIds: string[] }
+export interface BriefPoint {
+  text: string;
+  citationIds: string[];
+}
 export interface Situation {
   location: string;
   mode: "sources" | "ai";
@@ -47,12 +61,21 @@ export interface Situation {
   updatedAt: string | null;
   stale: boolean;
   notice: string;
-  sections: { whatHappened: BriefPoint[]; whyItMatters: BriefPoint[]; whatToMonitor: BriefPoint[] };
-  citations: (Citation & { eventId: string; source: string; publishedAt: string; scope: string })[];
+  sections: {
+    whatHappened: BriefPoint[];
+    whyItMatters: BriefPoint[];
+    whatToMonitor: BriefPoint[];
+  };
+  citations: (Citation & {
+    eventId: string;
+    source: string;
+    publishedAt: string;
+    scope: string;
+  })[];
 }
 export interface IntelEvent {
   intelligence?: SignalAssessment;
-  alertArea?: { type: 'MultiPolygon'; coordinates: number[][][][] };
+  alertArea?: { type: "MultiPolygon"; coordinates: number[][][][] };
   evidence?: { name: string; url: string; finding: string }[];
   counterevidence?: { name: string; url: string; finding: string }[];
   editorialType?: EditorialType;

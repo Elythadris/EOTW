@@ -19,9 +19,14 @@ const event: IntelEvent = {
   sources: [{ name: "Fixture agency", url: "https://example.org/bulletin" }],
   timeline: [{ at: "2026-01-14T12:05:00Z", text: "Published update" }],
   intelligence: {
-    score: 79, level: "elevated", category: "Weather", why: "A test advisory affects the monitored area.",
-    monitor: "Watch for the next agency bulletin.", reasons: ["Published agency warning"],
-    changeKey: "test-initial", axes: { credibility: 10, urgency: 8 },
+    score: 79,
+    level: "elevated",
+    category: "Weather",
+    why: "A test advisory affects the monitored area.",
+    monitor: "Watch for the next agency bulletin.",
+    reasons: ["Published agency warning"],
+    changeKey: "test-initial",
+    axes: { credibility: 10, urgency: 8 },
   },
   rank: 1,
   rankReasons: ["Recently published"],
@@ -49,7 +54,9 @@ async function mockAPI(
     const results = events.filter(
       (e) =>
         (!p.get("id") || p.get("id") === e.id) &&
-        (!p.get("type") || p.get("type") === "all" || p.get("type") === e.editorialType) &&
+        (!p.get("type") ||
+          p.get("type") === "all" ||
+          p.get("type") === e.editorialType) &&
         (!p.get("q") ||
           e.title.toLowerCase().includes(p.get("q")!.toLowerCase())) &&
         (!p.get("scope") || ["all", e.scope].includes(p.get("scope")!)),
@@ -60,18 +67,45 @@ async function mockAPI(
     await r.fulfill({
       json: {
         events: results.slice(start, start + pageSize),
-        ...(p.get("view") === "signals" ? { intelligence: {
-          scanned: events.length, alerts: results.length, lastScan: scan,
-          regions: ["local","us","global"].map(scope => ({
-            scope, level: results.some(e=>e.scope===scope) ? "elevated" : "quiet",
-            reason: results.some(e=>e.scope===scope) ? "An agency warning was recorded." : "No qualifying source observations.",
-            eventIds: results.filter(e=>e.scope===scope).map(e=>e.id),
-          })),
-          escalations: sample ? [{eventId:sample.id,at:scan,description:"The source increased the warning level."}] : [],
-          anomalies: [], baselineNote:"Insufficient historical coverage for this comparison.",
-          hotIds: results.map(e=>e.id), related: [],
-        }} : {}),
-        nextCursor: start + pageSize < results.length ? String(start + pageSize) : null,
+        ...(p.get("view") === "signals"
+          ? {
+              intelligence: {
+                scanned: events.length,
+                alerts: events.length,
+                activeWarnings: events.length,
+                lastScan: scan,
+                regions: ["local", "us", "global"].map((scope) => ({
+                  scope,
+                  level: results.some((e) => e.scope === scope)
+                    ? "elevated"
+                    : "quiet",
+                  reason: results.some((e) => e.scope === scope)
+                    ? "An agency warning was recorded."
+                    : "No qualifying source observations.",
+                  eventIds: events
+                    .filter((e) => e.scope === scope)
+                    .map((e) => e.id),
+                  count: events.filter((e) => e.scope === scope).length,
+                })),
+                escalations: sample
+                  ? [
+                      {
+                        eventId: sample.id,
+                        at: scan,
+                        description: "The source increased the warning level.",
+                      },
+                    ]
+                  : [],
+                anomalies: [],
+                baselineNote:
+                  "Insufficient historical coverage for this comparison.",
+                hotIds: results.map((e) => e.id),
+                related: [],
+              },
+            }
+          : {}),
+        nextCursor:
+          start + pageSize < results.length ? String(start + pageSize) : null,
         updatedAt: new Date().toISOString(),
         health: [
           {
@@ -84,12 +118,38 @@ async function mockAPI(
       },
     });
   });
-  await page.route("**/api/situation?**", r=>r.fulfill({json:{
-    location: new URL(r.request().url()).searchParams.get("location"), mode: "sources",
-    generatedAt: new Date().toISOString(), updatedAt: new Date().toISOString(), stale: false, notice: "",
-    sections: {whatHappened:events.length?[{text:"The source published a bulletin.",citationIds:["1"]}]:[], whyItMatters:[], whatToMonitor:[]},
-    citations:events.length?[{id:"1",eventId:events[0].id,title:events[0].title,source:events[0].source,url:events[0].url,publishedAt:events[0].publishedAt,scope:events[0].scope}]:[],
-  }}));
+  await page.route("**/api/situation?**", (r) =>
+    r.fulfill({
+      json: {
+        location: new URL(r.request().url()).searchParams.get("location"),
+        mode: "sources",
+        generatedAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        stale: false,
+        notice: "",
+        sections: {
+          whatHappened: events.length
+            ? [{ text: "The source published a bulletin.", citationIds: ["1"] }]
+            : [],
+          whyItMatters: [],
+          whatToMonitor: [],
+        },
+        citations: events.length
+          ? [
+              {
+                id: "1",
+                eventId: events[0].id,
+                title: events[0].title,
+                source: events[0].source,
+                url: events[0].url,
+                publishedAt: events[0].publishedAt,
+                scope: events[0].scope,
+              },
+            ]
+          : [],
+      },
+    }),
+  );
   await page.route("**/api/ask", (r) =>
     r.fulfill({
       json: {
@@ -251,7 +311,9 @@ test("reopens the static reader offline with the last public briefing", async ({
   ).toBeVisible();
 });
 
-test("archive record types persist across search, pagination and browser history", async ({ page }) => {
+test("archive record types persist across search, pagination and browser history", async ({
+  page,
+}) => {
   const corrections: IntelEvent[] = [1, 2].map((i) => ({
     ...event,
     id: "correction-" + i,
@@ -265,52 +327,152 @@ test("archive record types persist across search, pagination and browser history
   const picker = page.getByRole("combobox", { name: "Record type" });
   await picker.selectOption("correction");
   await expect(page).toHaveURL(/q=Maui&type=correction&scope=local$/);
-  await expect(page.getByRole("link", { name: corrections[0].title })).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: corrections[0].title }),
+  ).toBeVisible();
   await expect(page.getByRole("link", { name: event.title })).toHaveCount(0);
   await page.getByRole("button", { name: "Load more reports" }).click();
-  await expect(page.getByRole("link", { name: corrections[1].title })).toBeVisible();
-  await page.getByRole("textbox", { name: "Search the archive" }).fill("clarification 2");
+  await expect(
+    page.getByRole("link", { name: corrections[1].title }),
+  ).toBeVisible();
+  await page
+    .getByRole("textbox", { name: "Search the archive" })
+    .fill("clarification 2");
   await page.getByRole("button", { name: "Search", exact: true }).click();
-  await expect(page).toHaveURL(/q=clarification\+2&type=correction&scope=local$/);
-  await expect(page.getByRole("link", { name: corrections[1].title })).toBeVisible();
+  await expect(page).toHaveURL(
+    /q=clarification\+2&type=correction&scope=local$/,
+  );
+  await expect(
+    page.getByRole("link", { name: corrections[1].title }),
+  ).toBeVisible();
   await picker.selectOption("prediction");
-  await expect(page.getByRole("heading", { name: "No matching predictions" })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "No matching predictions" }),
+  ).toBeVisible();
   await page.goBack();
   await expect(picker).toHaveValue("correction");
-  await expect(page.getByRole("link", { name: corrections[1].title })).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: corrections[1].title }),
+  ).toBeVisible();
   await page.getByRole("link", { name: corrections[1].title }).click();
-  await expect(page.getByRole("link", { name: /Report being corrected Earlier bulletin/ })).toHaveAttribute("href", event.url);
+  await expect(
+    page.getByRole("link", { name: /Report being corrected Earlier bulletin/ }),
+  ).toHaveAttribute("href", event.url);
 });
 
-test("command center explains and filters source-backed regional signals", async ({page}) => {
+test("command center explains and filters source-backed regional signals", async ({
+  page,
+}) => {
   await mockAPI(page);
   await page.goto("/");
-  await expect(page.getByRole("heading", {name:"Threat scanner"})).toBeVisible();
-  await expect(page.getByRole("link", {name:"Source 1 · "+event.title})).toHaveAttribute("href",event.url);
-  const priorities=page.locator("#priority-signals");
-  await priorities.getByRole("button",{name:"Global",exact:true}).click();
-  await expect(priorities.getByRole("heading",{name:"No qualifying signals in this area"})).toBeVisible();
-  await priorities.getByRole("button",{name:"Local",exact:true}).click();
-  await priorities.getByText("Assessment & sources",{exact:true}).click();
-  await expect(priorities.getByText(/Watch for the next agency bulletin/)).toBeVisible();
-  await expect(priorities.getByRole("link",{name:"Original source"})).toHaveAttribute("href",event.url);
-  const monitor=page.getByRole("button",{name:/Escalation monitor/});
+  await expect(
+    page.getByRole("heading", { name: "Threat scanner" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "Source 1 · " + event.title }),
+  ).toHaveAttribute("href", event.url);
+  const priorities = page.locator("#priority-signals");
+  await priorities.getByRole("button", { name: "Global", exact: true }).click();
+  await expect(
+    priorities.getByRole("heading", {
+      name: "No qualifying signals in this area",
+    }),
+  ).toBeVisible();
+  await priorities.getByRole("button", { name: "Local", exact: true }).click();
+  await priorities.getByText("Assessment & sources", { exact: true }).click();
+  await expect(
+    priorities.getByText(/Watch for the next agency bulletin/),
+  ).toBeVisible();
+  await expect(
+    priorities.getByRole("link", { name: "Original source" }),
+  ).toHaveAttribute("href", event.url);
+  const monitor = page.getByRole("button", { name: /Escalation monitor/ });
   await monitor.click();
-  await expect(page.getByText("The source increased the warning level.")).toBeHidden();
+  await expect(
+    page.getByText("The source increased the warning level."),
+  ).toBeHidden();
   await monitor.click();
-  await expect(page.getByText("The source increased the warning level.")).toBeVisible();
-  await page.getByText("Baseline coverage",{exact:true}).click();
-  await expect(page.getByText("Insufficient historical coverage for this comparison.")).toBeVisible();
+  await expect(
+    page.getByText("The source increased the warning level."),
+  ).toBeVisible();
+  await page.getByText("Baseline coverage", { exact: true }).click();
+  await expect(
+    page.getByText("Insufficient historical coverage for this comparison."),
+  ).toBeVisible();
 });
-test("claim review distinguishes attributed evidence and counterevidence",async({page})=>{
-  const claim:IntelEvent={...event,category:"Claim",status:"speculation",source:"Fixture publisher",
-    evidence:[{name:"Source document",url:"https://example.org/document",finding:"The document records an allegation."}],
-    counterevidence:[{name:"Independent review",url:"https://example.org/review",finding:"The review disputes the chronology."}]};
-  await mockAPI(page,[claim]);
+test("claim review distinguishes attributed evidence and counterevidence", async ({
+  page,
+}) => {
+  const claim: IntelEvent = {
+    ...event,
+    category: "Claim",
+    status: "speculation",
+    source: "Fixture publisher",
+    evidence: [
+      {
+        name: "Source document",
+        url: "https://example.org/document",
+        finding: "The document records an allegation.",
+      },
+    ],
+    counterevidence: [
+      {
+        name: "Independent review",
+        url: "https://example.org/review",
+        finding: "The review disputes the chronology.",
+      },
+    ],
+  };
+  await mockAPI(page, [claim]);
   await page.goto("/rabbit-hole");
-  await page.getByText("Evidence review",{exact:true}).click();
-  await expect(page.getByRole("heading",{name:"Counterevidence"})).toBeVisible();
-  await expect(page.getByRole("link",{name:"Independent review"})).toHaveAttribute("href","https://example.org/review");
-  await expect(page.getByText(/Independent verification is unresolved/)).toBeVisible();
-  await expect(page.getByText("Unverified claim",{exact:true})).toBeVisible();
+  await page.getByText("Evidence review", { exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "Counterevidence" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "Independent review" }),
+  ).toHaveAttribute("href", "https://example.org/review");
+  await expect(
+    page.getByText(/Independent verification is unresolved/),
+  ).toBeVisible();
+  await expect(
+    page.getByText("Unverified claim", { exact: true }),
+  ).toBeVisible();
+});
+
+test("regional scanner retrieves signals beyond the first page", async ({
+  page,
+}) => {
+  const globalSignal: IntelEvent = {
+    ...event,
+    id: "global-fixture",
+    title: "Storm warning for a different region",
+    scope: "global",
+    location: "Test region",
+  };
+  await mockAPI(page, [event, globalSignal], 1);
+  await page.goto("/");
+  const priorities = page.locator("#priority-signals");
+  await expect(
+    priorities.getByRole("link", { name: event.title }),
+  ).toBeVisible();
+  await expect(
+    priorities.getByRole("link", { name: globalSignal.title }),
+  ).toHaveCount(0);
+  const global = page
+    .locator(".region-cell")
+    .filter({
+      has: page.getByRole("heading", { name: "Global", exact: true }),
+    });
+  await global.getByRole("button", { name: /Review signals/ }).click();
+  await expect(
+    priorities.getByRole("link", { name: globalSignal.title }),
+  ).toBeVisible();
+  await priorities
+    .getByRole("button", { name: "All areas", exact: true })
+    .click();
+  await priorities.getByRole("button", { name: "Show more signals" }).click();
+  await expect(
+    priorities.getByRole("link", { name: globalSignal.title }),
+  ).toBeVisible();
 });

@@ -86,12 +86,18 @@ const menu = [
 ] as const;
 const paths = Object.fromEntries(menu.map((x) => [x.page, x.path]));
 const headings: Record<string, [string, string]> = {
-  briefing: ["Command center", "Significant developments, active warnings, and changes in the latest scan."],
+  briefing: [
+    "Command center",
+    "Significant developments, active warnings, and changes in the latest scan.",
+  ],
   map: [
     "Live map",
     "Explore located reports and trace each marker to its source.",
   ],
-  trending: ["Hot 24", "Significant developments and narratives gaining momentum in the past 24 hours."],
+  trending: [
+    "Hot 24",
+    "Significant developments and narratives gaining momentum in the past 24 hours.",
+  ],
   rabbit: [
     "Rabbit hole",
     "Track unusual reports and emerging narratives. Inspect the evidence, counterevidence, and verification status.",
@@ -193,12 +199,12 @@ export default function App() {
     page === "briefing" || (page === "map" && !allMapReports)
       ? "signals"
       : page === "trending"
-      ? "trending"
-      : page === "rabbit"
-        ? "rabbit"
-        : ["story", "archive", "investigate"].includes(page)
-          ? "archive"
-          : "briefing";
+        ? "trending"
+        : page === "rabbit"
+          ? "rabbit"
+          : ["story", "archive", "investigate"].includes(page)
+            ? "archive"
+            : "briefing";
   const feed = useFeed(
     {
       view: requestView,
@@ -317,8 +323,16 @@ export default function App() {
       );
   }, [page, title, selected?.summary]);
   const alerts = page === "briefing" ? feed : extraAlerts;
-  const openNotification = useCallback((id:string) => navigate("/story/" + encodeURIComponent(id)), [navigate]);
-  useSignalNotifications(online && !alerts.error ? alerts.data : null, prefs, setMessage, openNotification);
+  const openNotification = useCallback(
+    (id: string) => navigate("/story/" + encodeURIComponent(id)),
+    [navigate],
+  );
+  useSignalNotifications(
+    online && !alerts.error ? alerts.data : null,
+    prefs,
+    setMessage,
+    openNotification,
+  );
   const nav = (mobile = false) => (
     <nav
       className="side-nav"
@@ -347,7 +361,10 @@ export default function App() {
     </nav>
   );
   const mapped = events.filter(
-    (e) => Number.isFinite(e.lat) && Number.isFinite(e.lon) && (scope === "all" || scope === e.scope),
+    (e) =>
+      Number.isFinite(e.lat) &&
+      Number.isFinite(e.lon) &&
+      (scope === "all" || scope === e.scope),
   );
   const mapRows = mapped.filter((e) => !category || category === e.category);
   const fail = feed.error || (!online ? "You are offline." : "");
@@ -366,18 +383,35 @@ export default function App() {
   ): ReactNode =>
     rows.length ? (
       <>
-        {rows.map((e, i) => (
-          page === "rabbit" ? <ClaimReview key={e.id} event={e} open={open} saved={prefs.saved.includes(e.id)} save={()=>save(e)}/> :
-          page === "trending" ? <StoryReview key={e.id} event={e} open={open} saved={prefs.saved.includes(e.id)} save={()=>save(e)} rank={i}/> :
-          <StoryRow
-            key={e.id}
-            e={e}
-            open={open}
-            saved={prefs.saved.includes(e.id)}
-            save={() => save(e)}
-            index={indexed ? i : undefined}
-          />
-        ))}
+        {rows.map((e, i) =>
+          page === "rabbit" ? (
+            <ClaimReview
+              key={e.id}
+              event={e}
+              open={open}
+              saved={prefs.saved.includes(e.id)}
+              save={() => save(e)}
+            />
+          ) : page === "trending" ? (
+            <StoryReview
+              key={e.id}
+              event={e}
+              open={open}
+              saved={prefs.saved.includes(e.id)}
+              save={() => save(e)}
+              rank={i}
+            />
+          ) : (
+            <StoryRow
+              key={e.id}
+              e={e}
+              open={open}
+              saved={prefs.saved.includes(e.id)}
+              save={() => save(e)}
+              index={indexed ? i : undefined}
+            />
+          ),
+        )}
       </>
     ) : feed.busy ? (
       <Skeleton />
@@ -429,7 +463,21 @@ export default function App() {
         </div>
       </header>
       <nav className="quick-views" aria-label="Quick views">
-        {menu.slice(0,4).map(item=><a key={item.page} href={item.path} aria-current={item.page===page?"page":undefined} onClick={e=>intercept(e,item.path)}><item.icon size={14}/>{item.page==="briefing"?"Command":item.page==="map"?"Map":item.label}</a>)}
+        {menu.slice(0, 4).map((item) => (
+          <a
+            key={item.page}
+            href={item.path}
+            aria-current={item.page === page ? "page" : undefined}
+            onClick={(e) => intercept(e, item.path)}
+          >
+            <item.icon size={14} />
+            {item.page === "briefing"
+              ? "Command"
+              : item.page === "map"
+                ? "Map"
+                : item.label}
+          </a>
+        ))}
       </nav>
       <div className="workspace">
         <aside className="rail">
@@ -485,7 +533,19 @@ export default function App() {
                   <h1>{headings[page][0]}</h1>
                   <p>{headings[page][1]}</p>
                 </div>
-                {page === "briefing" && <button className="location-control" onClick={()=>setPlace(true)}><MapPin size={16}/><span><small>Local focus</small>{prefs.location}</span><ChevronDown size={15}/></button>}
+                {page === "briefing" && (
+                  <button
+                    className="location-control"
+                    onClick={() => setPlace(true)}
+                  >
+                    <MapPin size={16} />
+                    <span>
+                      <small>Local focus</small>
+                      {prefs.location}
+                    </span>
+                    <ChevronDown size={15} />
+                  </button>
+                )}
                 {loadPage && page !== "investigate" && page !== "briefing" && (
                   <div className="freshness">
                     <span>
@@ -515,13 +575,35 @@ export default function App() {
                 go={go}
                 setLocation={() => setPlace(true)}
                 ask={() => setAsk(true)}
+                loadMore={feed.loadMore}
+                loadingMore={feed.more}
               />
             )}
             {page === "map" && (
               <>
-                <div className="map-view-choices" role="group" aria-label="Map dataset">
-                  <button aria-pressed={!allMapReports} onClick={()=>{setAllMapReports(false);setCategory("")}}>Priority signals</button>
-                  <button aria-pressed={allMapReports} onClick={()=>{setAllMapReports(true);setCategory("")}}>All mapped reports</button>
+                <div
+                  className="map-view-choices"
+                  role="group"
+                  aria-label="Map dataset"
+                >
+                  <button
+                    aria-pressed={!allMapReports}
+                    onClick={() => {
+                      setAllMapReports(false);
+                      setCategory("");
+                    }}
+                  >
+                    Priority signals
+                  </button>
+                  <button
+                    aria-pressed={allMapReports}
+                    onClick={() => {
+                      setAllMapReports(true);
+                      setCategory("");
+                    }}
+                  >
+                    All mapped reports
+                  </button>
                 </div>
                 <div className="map-tools">
                   <FilterBar scope={scope} set={setScope} />
@@ -541,7 +623,13 @@ export default function App() {
                   </label>
                 </div>
                 <section className="panel full-map">
-                  <EventMap events={mapRows} onSelect={open} scanAt={feed.data.intelligence?.lastScan || feed.data.updatedAt} />
+                  <EventMap
+                    events={mapRows}
+                    onSelect={open}
+                    scanAt={
+                      feed.data.intelligence?.lastScan || feed.data.updatedAt
+                    }
+                  />
                 </section>
                 <section className="panel">
                   <PanelHeading icon={<MapPin size={18} />}>
@@ -563,7 +651,9 @@ export default function App() {
                     submit={(q) => lookup(q, "archive")}
                   />
                 )}
-                <div className={page === "archive" ? "map-tools" : "list-tools"}>
+                <div
+                  className={page === "archive" ? "map-tools" : "list-tools"}
+                >
                   <FilterBar
                     scope={coverage}
                     set={(next) => {
@@ -581,10 +671,14 @@ export default function App() {
                       <select
                         value={archiveType}
                         onChange={(event) => {
-                          const type = archiveTypes.find(
-                            ([key]) => key === event.target.value,
-                          )?.[0] || "all";
-                          navigate(archivePath(query, type, archiveScope), true);
+                          const type =
+                            archiveTypes.find(
+                              ([key]) => key === event.target.value,
+                            )?.[0] || "all";
+                          navigate(
+                            archivePath(query, type, archiveScope),
+                            true,
+                          );
                         }}
                       >
                         {archiveTypes.map(([key, name]) => (
@@ -610,7 +704,10 @@ export default function App() {
                   <details className="method">
                     <summary>How are stories ranked?</summary>
                     <p>
-                      Hot 24 ranks qualifying activity from the last day using significance, fresh updates, source coverage, or measured discussion. Open each assessment to inspect the available ranking factors.
+                      Hot 24 ranks qualifying activity from the last day using
+                      significance, fresh updates, source coverage, or measured
+                      discussion. Open each assessment to inspect the available
+                      ranking factors.
                     </p>
                   </details>
                 )}
