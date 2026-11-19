@@ -6,7 +6,7 @@ import {
   MapPin,
   ShieldCheck,
 } from "lucide-react";
-import { SaveButton, Status } from "./components";
+import { EvidenceComparison, EvidenceCounts, PriorityStamp, SaveButton, ScoreBreakdown, Status } from "./components";
 import { dateTime, relative, sourceURL, type IntelEvent } from "./types";
 
 export function OpsPanel({
@@ -89,11 +89,7 @@ export function StoryLink({
   );
 }
 export function StoryReview({
-  event,
-  open,
-  saved,
-  save,
-  rank,
+  event, open, saved, save, rank,
 }: {
   event: IntelEvent;
   open: (e: IntelEvent) => void;
@@ -102,119 +98,40 @@ export function StoryReview({
   rank?: number;
 }) {
   const assessment = event.intelligence;
-  const factors = assessment?.reasons?.length
-    ? assessment.reasons
-    : event.rankReasons;
-  return (
-    <article className={"assessment-card " + (assessment?.level || "")}>
-      <div className="assessment-top">
-        <span className="assessment-type">
-          {rank !== undefined && <b>{String(rank + 1).padStart(2, "0")}</b>}
-          {assessment?.category || event.category}
-        </span>
-        <span className="assessment-tools">
-          {assessment && (
-            <span className={"level level-" + assessment.level}>
-              {assessment.level}
-            </span>
-          )}
-          <SaveButton saved={saved} toggle={save} />
-        </span>
-      </div>
-      <h3>
-        <StoryLink event={event} open={open} />
-      </h3>
-      <div className="assessment-meta">
-        {event.location && (
-          <span>
-            <MapPin size={12} />
-            {event.location}
-          </span>
-        )}
-        <span>{event.source}</span>
-        {rank !== undefined &&
-          (event.topicClaim || event.status === "speculation") && (
-            <span>
-              Narrative tracking · <Status value={event.status} />
-            </span>
-          )}
-        {!!event.bulletinCount && event.bulletinCount > 1 && (
-          <span>{event.bulletinCount} area bulletins</span>
-        )}
-        <time dateTime={event.updatedAt} title={dateTime(event.updatedAt)}>
-          {relative(event.updatedAt)}
-        </time>
-      </div>
-      {assessment?.why && <p className="why-line">{assessment.why}</p>}
-      <details className="assessment-details">
-        <summary>
-          Assessment &amp; sources
-          <ChevronDown size={14} />
-        </summary>
-        <div>
-          {!assessment?.why && event.summary && <p>{event.summary}</p>}
-          {assessment?.monitor && (
-            <p>
-              <b>Monitor next</b> {assessment.monitor}
-            </p>
-          )}
-          {!!factors?.length && (
-            <ul>
-              {factors.map((f, i) => (
-                <li key={i}>{f}</li>
-              ))}
-            </ul>
-          )}
-          <div className="inline-links">
-            <Status value={event.status} />
-            {sourceURL(event.url) && (
-              <a href={sourceURL(event.url)} target="_blank" rel="noreferrer">
-                Original source
-                <ArrowUpRight size={13} />
-              </a>
-            )}
-          </div>
-        </div>
-      </details>
-    </article>
-  );
-}
-function ReferenceGroup({
-  title,
-  records,
-  empty,
-}: {
-  title: string;
-  records?: { name: string; url: string; finding: string }[];
-  empty: string;
-}) {
-  const valid = (records || []).filter((r) => sourceURL(r.url));
-  return (
-    <div>
-      <h4>{title}</h4>
-      {valid.length ? (
-        <ul>
-          {valid.map((r, i) => (
-            <li key={i}>
-              {r.finding}{" "}
-              <a href={sourceURL(r.url)} target="_blank" rel="noreferrer">
-                {r.name}
-                <ArrowUpRight size={12} />
-              </a>
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <p>{empty}</p>
-      )}
+  const source = sourceURL(event.url);
+  return <article className={"assessment-card sv-priority-card sv-tone-" + (assessment?.level || "neutral")}>
+    <div className="sv-card-bar">
+      <span className="sv-category">{rank !== undefined && <b aria-label={"Rank " + (rank+1)}>{String(rank+1).padStart(2,"0")}</b>}{assessment?.category || event.category}</span>
+      <SaveButton saved={saved} toggle={save}/>
     </div>
-  );
+    <div className="sv-title-line">
+      <h3><StoryLink event={event} open={open}/></h3>
+      {assessment && <PriorityStamp assessment={assessment}/>}
+    </div>
+    <div className="sv-meta">
+      {event.location && <span><MapPin size={13} aria-hidden="true"/>{event.location}</span>}
+      <span>{event.source}</span>
+      <time dateTime={event.updatedAt} title={dateTime(event.updatedAt)}>{relative(event.updatedAt)}</time>
+      {!!event.bulletinCount && event.bulletinCount > 1 && <span className="sv-group">{event.bulletinCount} area bulletins</span>}
+      {rank !== undefined && (event.topicClaim || event.status === "speculation") && <span>Narrative tracking · <Status value={event.status}/></span>}
+    </div>
+    {assessment?.why && <p className="sv-card-why">{assessment.why}</p>}
+    <details className="assessment-details sv-expand">
+      <summary><span>Assessment &amp; sources</span><ChevronDown size={15} aria-hidden="true"/></summary>
+      <div className="sv-card-body">
+        {!assessment?.why && event.summary && <p>{event.summary}</p>}
+        {assessment?.monitor && <div className="sv-monitor"><strong>Monitor next</strong><p>{assessment.monitor}</p></div>}
+        {assessment ? <ScoreBreakdown e={event}/> : !!event.rankReasons?.length && <ul className="sv-reasons">{event.rankReasons.map((reason,i)=><li key={i}>{reason}</li>)}</ul>}
+        <div className="sv-card-origin"><Status value={event.status}/>
+          {source && <a href={source} target="_blank" rel="noreferrer">Original source<ArrowUpRight size={13} aria-hidden="true"/></a>}
+        </div>
+      </div>
+    </details>
+  </article>;
 }
+
 export function ClaimReview({
-  event,
-  open,
-  saved,
-  save,
+  event, open, saved, save,
 }: {
   event: IntelEvent;
   open: (e: IntelEvent) => void;
@@ -222,67 +139,28 @@ export function ClaimReview({
   save: () => void;
 }) {
   const safe = sourceURL(event.url);
-  const host = safe ? new URL(safe).hostname.replace(/^www\./, "") : "";
-  const origin = /^(?:[^.]+\.)*reddit\.com$/.test(host)
-    ? "Public discussion"
-    : /\.gov$/.test(host)
-      ? "Government publication"
-      : "Publisher report";
-  return (
-    <article className="claim-card">
-      <div className="assessment-top">
-        <span className="assessment-type">{event.category}</span>
-        <SaveButton saved={saved} toggle={save} />
-      </div>
-      <h3>
-        <StoryLink event={event} open={open} />
-      </h3>
-      <div className="assessment-meta">
-        <Status value={event.status} />
-        <span>{event.source}</span>
-        <time dateTime={event.publishedAt}>{relative(event.publishedAt)}</time>
-      </div>
-      {event.summary !== event.title && (
-        <p className="why-line">{event.summary}</p>
-      )}
-      <details className="assessment-details">
-        <summary>
-          <BookOpen size={14} />
-          Evidence review
-          <ChevronDown size={14} />
-        </summary>
-        <div className="claim-evidence">
-          <ReferenceGroup
-            title="Supporting evidence"
-            records={event.evidence}
-            empty="No supporting findings are indexed for this claim."
-          />
-          <ReferenceGroup
-            title="Counterevidence"
-            records={event.counterevidence}
-            empty="No contrary findings are indexed for this claim."
-          />
-          <div>
-            <h4>
-              <ShieldCheck size={14} />
-              Source credibility
-            </h4>
-            <p>
-              {origin}
-              {host ? " · " + host : ""}.{" "}
-              {event.status === "speculation"
-                ? "The archive documents an allegation. Independent verification is unresolved."
-                : "Use the linked material to check the reported facts and attribution."}
-            </p>
-            {safe && (
-              <a href={safe} target="_blank" rel="noreferrer">
-                Read the originating account
-                <ArrowUpRight size={13} />
-              </a>
-            )}
-          </div>
+  const host = safe ? new URL(safe).hostname.replace(/^www\./,"") : "";
+  const origin = /^(?:[^.]+\.)*reddit\.com$/.test(host) ? "Public discussion"
+    : /\.gov$/.test(host) ? "Government publication" : "Publisher report";
+  return <article className="claim-card sv-claim-card">
+    <div className="sv-card-bar"><span className="sv-category"><BookOpen size={14} aria-hidden="true"/>{event.category}</span>
+      <SaveButton saved={saved} toggle={save}/>
+    </div>
+    <h3><StoryLink event={event} open={open}/></h3>
+    <div className="sv-meta"><Status value={event.status}/><span>{event.source}</span>
+      <time dateTime={event.publishedAt} title={dateTime(event.publishedAt)}>{relative(event.publishedAt)}</time>
+    </div>
+    {event.summary && event.summary !== event.title && <p className="sv-card-why">{event.summary}</p>}
+    <details className="assessment-details sv-expand">
+      <summary><span>Evidence review</span><EvidenceCounts e={event}/><ChevronDown size={15} aria-hidden="true"/></summary>
+      <div className="sv-card-body">
+        <EvidenceComparison e={event}/>
+        <div className="sv-source-check">
+          <h4><ShieldCheck size={16} aria-hidden="true"/>Source credibility</h4>
+          <p>{origin}{host && " · " + host}.{event.status === "speculation" && " Independent verification is unresolved."}</p>
+          {safe && <a className="sv-origin-link" href={safe} target="_blank" rel="noreferrer">Read the originating account<ArrowUpRight size={13} aria-hidden="true"/></a>}
         </div>
-      </details>
-    </article>
-  );
+      </div>
+    </details>
+  </article>;
 }

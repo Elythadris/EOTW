@@ -17,6 +17,11 @@ import {
   TriangleAlert,
 } from "lucide-react";
 import EventMap from "./EventMap";
+import {
+  CoverageProfile,
+  SituationAtlas,
+  type RegionRecord,
+} from "./BriefingVisuals";
 import { NoItems, Skeleton } from "./components";
 import { useFeed, useSituation, type PrefsState } from "./data";
 import { ClaimReview, OpsPanel, StoryLink, StoryReview } from "./Operations";
@@ -197,7 +202,7 @@ export default function Briefing({
   const failures = data.health.filter((s) => s.status === "error").length;
   const enabled = data.health.filter((s) => s.status !== "disabled").length;
   const disabled = data.health.filter((s) => s.status === "disabled").length;
-  const regions = useMemo(
+  const regions = useMemo<RegionRecord[]>(
     () =>
       (["local", "us", "global"] as const).map((key) => {
         const record = intel?.regions?.find((r) => r.scope === key);
@@ -213,6 +218,48 @@ export default function Briefing({
       }),
     [intel, known, scanOld],
   );
+  const area = scope === "all" ? "local" : scope;
+  const atlasEvents = useMemo(
+    () => [
+      ...new Map([...signals, ...filtered].map((e) => [e.id, e])).values(),
+    ],
+    [signals, filtered],
+  );
+  const atlasIndex = useMemo(
+    () => new Map(atlasEvents.map((e) => [e.id, e])),
+    [atlasEvents],
+  );
+  const areaRegion = regions.find((r) => r.scope === area);
+  const weight = { unknown: 0, quiet: 0, watch: 1, elevated: 2, high: 3 };
+  const other = regions
+    .filter((r) => r.scope !== area && r.eventIds.length)
+    .sort(
+      (a, b) =>
+        weight[b.level] - weight[a.level] ||
+        (atlasIndex.get(b.eventIds[0])?.intelligence?.score || 0) -
+          (atlasIndex.get(a.eventIds[0])?.intelligence?.score || 0),
+    )[0];
+  const primaryId = areaRegion?.eventIds[0];
+  const widerId = other?.eventIds[0];
+  // A wider region's leading report may sit beyond the first page of local warnings.
+  const primaryRecord = useFeed(
+    { view: "archive", id: primaryId || "", location: where },
+    !!primaryId && !atlasIndex.has(primaryId),
+  );
+  const widerRecord = useFeed(
+    { view: "archive", id: widerId || "", location: where },
+    !!widerId && !atlasIndex.has(widerId),
+  );
+  const areaLead =
+    (primaryId &&
+      (atlasIndex.get(primaryId) ||
+        primaryRecord.data.events.find((e) => e.id === primaryId))) ||
+    atlasEvents.find((e) => e.scope === area);
+  const widerLead =
+    (widerId &&
+      (atlasIndex.get(widerId) ||
+        widerRecord.data.events.find((e) => e.id === widerId))) ||
+    atlasEvents.find((e) => e.scope !== area);
   const choose = (s: Scope) => {
     setScope(s);
     setLimit(4);
@@ -224,66 +271,96 @@ export default function Briefing({
     </button>
   );
   return (
-    <div className="ops">
-      <div className="monitor-bar" aria-label="Scan telemetry">
-        <button onClick={() => go("health")}>
-          <span>
-            <Radio size={14} />
-            Source health
-          </span>
-          <strong>{data.health.length ? ok + " / " + enabled : "—"}</strong>
-          <small>
-            {scanOld
-              ? "At last scan"
-              : failures
-                ? failures + " unavailable"
-                : disabled
-                  ? disabled + " disabled"
-                  : "Reporting sources"}
-          </small>
-        </button>
-        <div>
-          <span>
-            <ScanLine size={14} />
-            Last successful scan
-          </span>
-          <strong className="time-number" title={dateTime(last)}>
-            {last ? relative(last) : "Pending"}
-          </strong>
-          <small>{last ? dateTime(last) : "Awaiting collector"}</small>
-        </div>
-        <div>
-          <span>
-            <Crosshair size={14} />
-            {scanOld ? "Last known signals" : "Priority signals"}
-          </span>
-          <strong>{known ? intel!.alerts : "—"}</strong>
-          <small>
-            {known ? intel!.scanned + " records scanned" : "Awaiting scan"}
-          </small>
-        </div>
-        <div>
-          <span>
-            <TriangleAlert size={14} />
-            Active warnings
-          </span>
-          <strong
-            className={
-              known && !scanOld && (intel?.activeWarnings || 0) > 0
-                ? "warn-number"
-                : ""
-            }
+    <div className="ops field-atlas">
+      <SituationAtlas
+        scope={scope}
+        where={where}
+        regions={regions}
+        lead={areaLead || undefined}
+        wider={widerLead || undefined}
+        last={last}
+        pending={pending}
+        stale={scanOld}
+        choose={choose}
+        open={open}
+        map={
+          <OpsPanel
+            title="Intelligence map"
+            icon={<Radar size={20} />}
+            className="ops-map"
+            action={action("Explore map", () => go("map"))}
           >
-            {known && !scanOld ? (intel?.activeWarnings ?? "—") : "—"}
-          </strong>
-          <small>
-            {scanOld
-              ? "Current count unavailable"
-              : "Official warnings in force"}
-          </small>
-        </div>
-      </div>
-      <div className="ops-lead-grid">
+            <EventMap
+              events={atlasEvents}
+              onSelect={open}
+              compact
+              scanAt={last}
+              focusScope={scope === "all" ? undefined : scope}
+            />
+          </OpsPanel>
+        }
+        telemetry={
+          <div className="monitor-bar" aria-label="Scan telemetry">
+            <button onClick={() => go("health")}>
+              <span>
+                <Radio size={14} />
+                Source health
+              </span>
+              <strong>{data.health.length ? ok + " / " + enabled : "—"}</strong>
+              <small>
+                {scanOld
+                  ? "At last scan"
+                  : failures
+                    ? failures + " unavailable"
+                    : disabled
+                      ? disabled + " disabled"
+                      : "Reporting sources"}
+              </small>
+            </button>
+            <div>
+              <span>
+                <ScanLine size={14} />
+                Last successful scan
+              </span>
+              <strong className="time-number" title={dateTime(last)}>
+                {last ? relative(last) : "Pending"}
+              </strong>
+              <small>{last ? dateTime(last) : "Awaiting collector"}</small>
+            </div>
+            <div>
+              <span>
+                <Crosshair size={14} />
+                {scanOld ? "Last known signals" : "Priority signals"}
+              </span>
+              <strong>{known ? intel!.alerts : "—"}</strong>
+              <small>
+                {known ? intel!.scanned + " records scanned" : "Awaiting scan"}
+              </small>
+            </div>
+            <div>
+              <span>
+                <TriangleAlert size={14} />
+                Active warnings
+              </span>
+              <strong
+                className={
+                  known && !scanOld && (intel?.activeWarnings || 0) > 0
+                    ? "warn-number"
+                    : ""
+                }
+              >
+                {known && !scanOld ? (intel?.activeWarnings ?? "—") : "—"}
+              </strong>
+              <small>
+                {scanOld
+                  ? "Current count unavailable"
+                  : "Official warnings in force"}
+              </small>
+            </div>
+          </div>
+        }
+      />
+      <div className="atlas-analysis-grid">
         <OpsPanel
           title="Situation briefing"
           icon={<BookOpen size={19} />}
@@ -401,68 +478,72 @@ export default function Briefing({
           </div>
         </OpsPanel>
         <OpsPanel
-          title="Intelligence map"
-          icon={<Radar size={20} />}
-          className="ops-map"
-          action={action("Explore map", () => go("map"))}
+          title="Threat scanner"
+          icon={<ScanLine size={19} />}
+          className="scanner-panel"
+          action={action(where, setLocation)}
         >
-          <EventMap events={signals} onSelect={open} compact scanAt={last} />
+          <CoverageProfile
+            regions={regions}
+            all={known ? intel!.alerts : undefined}
+            stale={scanOld}
+          />
+          <div className="regions">
+            {regions.map((r) => {
+              const RegionIcon =
+                r.scope === "local"
+                  ? MapPin
+                  : r.scope === "us"
+                    ? Compass
+                    : Globe2;
+              return (
+                <div
+                  className={"region-cell tone-" + r.level}
+                  key={r.scope}
+                  data-focused={scope === r.scope}
+                >
+                  <div className="region-title">
+                    <RegionIcon size={16} />
+                    <h3>
+                      {r.scope === "local" ? where : regionNames[r.scope]}
+                    </h3>
+                    {r.scope === "local" && <span>Local</span>}
+                  </div>
+                  <div className="region-state">
+                    <strong>
+                      {r.level === "unknown" ? "Unknown" : r.level}
+                    </strong>
+                    <span
+                      className={"atlas-region-count atlas-count-" + r.scope}
+                    >
+                      {typeof r.count === "number"
+                        ? r.count + " " + (r.count === 1 ? "signal" : "signals")
+                        : "Count unavailable"}
+                    </span>
+                  </div>
+                  <p>{r.reason}</p>
+                  {r.eventIds.length > 0 && (
+                    <button
+                      className="text-action"
+                      onClick={() => {
+                        choose(r.scope);
+                        setReveal((v) => v + 1);
+                        requestAnimationFrame(() =>
+                          document
+                            .getElementById("priority-signals")
+                            ?.scrollIntoView({ block: "start" }),
+                        );
+                      }}
+                    >
+                      Review signals <ChevronRight size={13} />
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
         </OpsPanel>
       </div>
-      <OpsPanel
-        title="Threat scanner"
-        icon={<ScanLine size={19} />}
-        className="scanner-panel"
-        action={action(where, setLocation)}
-      >
-        <div className="regions">
-          {regions.map((r) => {
-            const RegionIcon =
-              r.scope === "local"
-                ? MapPin
-                : r.scope === "us"
-                  ? Compass
-                  : Globe2;
-            const position = ["quiet", "watch", "elevated", "high"].indexOf(
-              r.level,
-            );
-            return (
-              <div className={"region-cell tone-" + r.level} key={r.scope}>
-                <div className="region-title">
-                  <RegionIcon size={16} />
-                  <h3>{r.scope === "local" ? where : regionNames[r.scope]}</h3>
-                  {r.scope === "local" && <span>Local</span>}
-                </div>
-                <div className="region-state">
-                  <strong>{r.level === "unknown" ? "Unknown" : r.level}</strong>
-                  <div className="meter" aria-hidden="true">
-                    {[0, 1, 2, 3].map((i) => (
-                      <i key={i} className={position >= i ? "filled" : ""} />
-                    ))}
-                  </div>
-                </div>
-                <p>{r.reason}</p>
-                {r.eventIds.length > 0 && (
-                  <button
-                    className="text-action"
-                    onClick={() => {
-                      choose(r.scope);
-                      setReveal((v) => v + 1);
-                      requestAnimationFrame(() =>
-                        document
-                          .getElementById("priority-signals")
-                          ?.scrollIntoView({ block: "start" }),
-                      );
-                    }}
-                  >
-                    Review signals <ChevronRight size={13} />
-                  </button>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      </OpsPanel>
       <div className="ops-stream-grid">
         <div id="priority-signals">
           <OpsPanel

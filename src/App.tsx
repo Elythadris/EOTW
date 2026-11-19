@@ -18,7 +18,6 @@ import {
   LayoutDashboard,
   MapPin,
   Menu,
-  Radar,
   Radio,
   Search,
   ShieldCheck,
@@ -28,6 +27,8 @@ import {
   X,
 } from "lucide-react";
 import Assistant from "./Assistant";
+import MauiRelief from "./MauiRelief";
+import SourceCoverage from "./SourceCoverage";
 import Briefing from "./Briefing";
 import { useSignalNotifications } from "./notifications";
 import { ClaimReview, StoryReview } from "./Operations";
@@ -165,7 +166,7 @@ function Brand() {
   return (
     <span className="brand">
       <span className="brand-mark" aria-hidden="true">
-        <Radar size={28} strokeWidth={1.7} />
+        <img src="/favicon.svg" width="38" height="38" alt="" />
       </span>
       <strong>EOTW</strong>
       <span className="brand-name">
@@ -189,6 +190,7 @@ export default function App() {
   const [online, setOnline] = useState(navigator.onLine);
   const prefsState = usePreferences();
   const { prefs, change } = prefsState;
+  const mauiFocus = /^(?:maui|maui county)(?:,|$)/i.test(prefs.location.trim());
   const { page, id, query, archiveType, archiveScope } = current;
   const coverage = page === "archive" ? archiveScope : scope;
   const isStory = page === "story";
@@ -487,19 +489,17 @@ export default function App() {
       <div className="workspace">
         <aside className="rail">
           {nav()}
-          <div className="rail-foot">
-            <span className="section-kicker">
-              <MapPin size={13} />
-              Local focus
-            </span>
-            <button onClick={() => setPlace(true)}>
-              {prefs.location}
-              <ChevronDown size={16} />
+          <div className="edition-card">
+            <button className="edition-select" onClick={() => setPlace(true)} aria-label={"Change local focus, " + prefs.location}>
+              {mauiFocus && <span className="edition-terrain"><MauiRelief /></span>}
+              <span className="edition-caption">
+                <span><small>Local focus</small><strong>{prefs.location}</strong></span><ChevronDown size={16}/>
+              </span>
             </button>
           </div>
         </aside>
         <main id="main-content" tabIndex={-1}>
-          <div className="main-inner">
+          <div className={"main-inner view-" + page} key={page}>
             {(!online || (loadPage && fail)) && (
               <div className="network-note" role="status">
                 <WifiOff size={17} />
@@ -536,7 +536,7 @@ export default function App() {
                     }).format(new Date())}
                   </div>
                   <h1>{headings[page][0]}</h1>
-                  <p>{headings[page][1]}</p>
+                  {page !== "briefing" && <p>{headings[page][1]}</p>}
                 </div>
                 {page === "briefing" && (
                   <button
@@ -771,50 +771,9 @@ export default function App() {
             {page === "watchlist" && (
               <Watchlist state={prefsState} open={open} notify={setMessage} />
             )}
-            {page === "health" && (
-              <section className="panel">
-                <PanelHeading icon={<Activity size={18} />}>
-                  Provider status
-                </PanelHeading>
-                {feed.data.health.length ? (
-                  <div className="health-grid">
-                    {feed.data.health.map((s) => (
-                      <article key={s.id}>
-                        <div>
-                          <h3>{s.name}</h3>
-                          <span className={"health-tag " + s.status}>
-                            {s.status === "ok"
-                              ? "Healthy"
-                              : s.status === "error"
-                                ? "Unavailable"
-                                : s.status === "disabled"
-                                  ? "Disabled"
-                                  : "Pending"}
-                          </span>
-                        </div>
-                        <small>Last successful check</small>
-                        <time dateTime={s.lastSuccess || undefined}>
-                          {s.lastSuccess
-                            ? dateTime(s.lastSuccess)
-                            : "No successful check recorded"}
-                        </time>
-                        {s.intervalMinutes && (
-                          <p>Checks every {s.intervalMinutes} min</p>
-                        )}
-                        {s.detail && <p>{s.detail}</p>}
-                      </article>
-                    ))}
-                  </div>
-                ) : feed.busy ? (
-                  <Skeleton />
-                ) : (
-                  <NoItems
-                    title="Provider checks pending"
-                    detail="The collector records the outcome of each source check."
-                  />
-                )}
-              </section>
-            )}
+            {page === "health" && (feed.data.health.length
+              ? <SourceCoverage sources={feed.data.health}/>
+              : feed.busy ? <Skeleton/> : <NoItems title="Provider checks pending" detail="The collector records the outcome of each source check."/>)}
             {isStory && (
               <>
                 <a
@@ -864,7 +823,14 @@ export default function App() {
         </Modal>
       )}
       {place && (
-        <Modal title="Set local focus" onClose={() => setPlace(false)}>
+        <Modal title="Set local focus" onClose={() => setPlace(false)} className="edition-modal">
+          {mauiFocus && <figure className="edition-plate">
+            <MauiRelief />
+            <figcaption><strong>Maui</strong><span>Island relief</span>
+              <a href="https://www.usgs.gov/3d-elevation-program" target="_blank" rel="noreferrer">USGS 3DEP</a>
+              <a href="https://www.naturalearthdata.com/" target="_blank" rel="noreferrer">Natural Earth</a>
+            </figcaption>
+          </figure>}
           <div className="section-pad">
             <LocationForm
               value={prefs.location}

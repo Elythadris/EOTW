@@ -12,6 +12,7 @@ import "@fontsource/inter/latin-700.css";
 import App from "./App";
 import { routeIdentityCallback } from "./Account";
 import "./styles.css";
+import "./atlas-shell.css";
 
 class ReaderBoundary extends React.Component<
   { children: React.ReactNode },

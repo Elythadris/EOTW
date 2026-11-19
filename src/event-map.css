@@ -1,175 +1,170 @@
 .eotw-map {
-  position: relative;
+  --atlas-ink: #e1efee;
+  --atlas-muted: #acc4c9;
+  --atlas-line: #36515e;
+  --atlas-teal: #83d9cc;
+  container-type: inline-size;
   overflow: hidden;
   isolation: isolate;
-  color: #d6dddc;
-  background: #131a1d;
-  border: 1px solid #394143;
-  border-radius: 3px;
+  border-radius: 14px;
+  background: #132731;
+  color: var(--atlas-ink);
+  font-family: Inter, system-ui, sans-serif;
+  box-shadow: inset 0 0 0 1px #54758148;
+}
+.eotw-plate {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  background:
+    radial-gradient(ellipse at 39% 32%, #28505e 0, transparent 53%),
+    linear-gradient(118deg, #102c3c 3%, #1c3c4c 58%, #102a39 100%);
+}
+.eotw-plate::after {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background-image: radial-gradient(#a0ccd61f .55px, transparent .8px);
+  background-size: 5px 5px;
+  content: "";
+  pointer-events: none;
 }
 .eotw-map-canvas {
   display: block;
   width: 100%;
   height: auto;
-  min-height: 220px;
-  max-height: 70vh;
-  background: radial-gradient(ellipse at 45% 40%, #222d30 0%, #141b1e 75%);
+  aspect-ratio: 2.06;
+  min-height: 225px;
+  max-height: 68vh;
+  overflow: hidden;
 }
-.eotw-country {
-  fill: #4c5859;
-  stroke: #243135;
-  stroke-width: 0.75px;
+.eotw-map.is-compact .eotw-map-canvas { min-height: 214px; aspect-ratio: 2.05; }
+.eotw-map-canvas[data-zoomed="true"] { cursor: grab; }
+.eotw-map-canvas[data-dragging="true"] { cursor: grabbing; }
+.eotw-map :is(button, .eotw-map-canvas):focus-visible { outline: 2px solid #dcfff4; outline-offset: -3px; }
+.eotw-grid, .eotw-equator, .eotw-shelf, .eotw-coast, .eotw-border, .eotw-alert-area { vector-effect: non-scaling-stroke; }
+.eotw-grid { fill: none; stroke: #8ac0c9; stroke-width: .65px; opacity: .27; }
+.eotw-equator { fill: none; stroke: #a5cdd0; stroke-width: .8px; stroke-dasharray: 3 5; opacity: .53; }
+.eotw-shelf { fill: none; stroke-linejoin: round; pointer-events: none; }
+.eotw-shelf.shelf-outer { stroke: #5da4ac; stroke-width: 16px; opacity: .1; }
+.eotw-shelf.shelf-mid { stroke: #71bcc0; stroke-width: 9px; opacity: .15; }
+.eotw-shelf.shelf-inner { stroke: #91cacc; stroke-width: 4.5px; opacity: .25; }
+.eotw-coast { stroke: #91b6b8; stroke-width: .83px; stroke-linejoin: round; }
+.eotw-border { fill: none; stroke: #223f4d; stroke-width: .68px; stroke-linecap: round; }
+.eotw-alert-area { fill: #ffb366; fill-opacity: .34; stroke: #ffce8e; stroke-width: 1.45px; }
+.eotw-map-labels { text-anchor: middle; pointer-events: none; user-select: none; }
+.eotw-map-labels text { paint-order: stroke; stroke: #223e4b; stroke-linejoin: round; stroke-width: 2.4px; }
+.eotw-map-labels .ml-continent {
+  font: 600 13px/1 "Barlow Condensed", "Arial Narrow", sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 1.15px;
+  fill: #e1eae0;
 }
-.eotw-ocean {
-  fill: #91a3a5;
-  letter-spacing: 2px;
-  font-family: "IBM Plex Mono", monospace;
+.eotw-map-labels .ml-country, .eotw-map-labels .ml-island {
+  fill: #e5ece4;
+  font: 550 11px/1 Inter, system-ui, sans-serif;
+}
+.eotw-map-labels .ml-ocean {
+  fill: #a7cbd0;
+  stroke: #234754;
+  stroke-width: 2px;
+  font: italic 11px/1 Georgia, serif;
+  letter-spacing: .65px;
+}
+.eotw-map .mp-high { --mp: #ff8b79; }
+.eotw-map .mp-elevated { --mp: #ffcb85; }
+.eotw-map .mp-watch { --mp: #8de6d2; }
+.eotw-map .mp-routine { --mp: #bdd4e6; }
+.eotw-marker { color: var(--mp); cursor: pointer; }
+.eotw-marker:focus { outline: none; }
+.eotw-marker .eotw-pin-halo { fill: #163443; stroke: currentColor; stroke-width: 1.45px; }
+.eotw-priority-ring { fill: none; stroke: currentColor; stroke-width: .95px; opacity: .9; }
+.eotw-marker:is(:hover, :focus-visible, .is-active) .eotw-pin-halo { stroke: #fff3d9; stroke-width: 2.3px; fill: #214a55; }
+.eotw-marker:is(:focus-visible, .is-active) .eotw-priority-ring { stroke: #fff3d9; stroke-width: 1.5px; }
+.eotw-pin-count { text-anchor: middle; dominant-baseline: middle; fill: currentColor; font: 650 10px/1 "IBM Plex Mono", monospace; pointer-events: none; }
+.eotw-map-index, .eotw-map-north {
+  position: absolute;
+  z-index: 1;
   pointer-events: none;
+  user-select: none;
+  color: #c6e3e1;
+  font: 550 10px/1.2 "IBM Plex Mono", monospace;
 }
-.eotw-marker {
-  cursor: pointer;
-}
-.eotw-map-canvas:focus-visible,
-.eotw-marker:focus-visible,
-.eotw-map button:focus-visible {
-  outline: 2px solid #ffe8c5;
-  outline-offset: -2px;
-}
-.eotw-marker:is(:focus, :hover) .eotw-halo {
-  fill-opacity: 0.7;
-  stroke: #fff;
-}
-.eotw-controls {
-  display: flex;
-  flex-direction: column;
+.eotw-map-index { top: 12px; left: 13px; display: inline-flex; align-items: center; gap: 6px; letter-spacing: .05em; }
+.eotw-map-index { max-width: min(65%, 280px); }
+.eotw-map-index svg { flex: none; }
+.eotw-map-index span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.eotw-map-north { top: 9px; right: 15px; display: grid; justify-items: center; gap: 1px; font-size: 9px; }
+.eotw-map-tip, .eotw-map-empty {
   position: absolute;
-  top: 12px;
-  right: 12px;
-  border: 1px solid #526062;
-  border-radius: 3px;
-  overflow: hidden;
+  z-index: 2;
+  pointer-events: none;
+  color: #e5f1ed;
+  background: #112832f5;
+  border: 1px solid #53737c;
+  border-radius: 8px;
+  box-shadow: 0 4px 15px #06171d55;
 }
-.eotw-controls button,
-.eotw-cluster button {
-  background: #182023;
-  color: #edf1ee;
-  cursor: pointer;
-  font: inherit;
-  border: 0;
+.eotw-map-tip { display: grid; gap: 4px; width: min(206px, calc(100% - 12px)); box-sizing: border-box; padding: 8px 10px; }
+.eotw-map-tip strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+.eotw-map-tip span { color: var(--atlas-muted); font-size: 11px; }
+.eotw-map-empty { left: 50%; bottom: 8px; transform: translateX(-50%); margin: 0; padding: 7px 12px; font-size: 12px; text-align: center; width: max-content; max-width: calc(100% - 30px); }
+.eotw-map-dock, .eotw-map-layers, .eotw-map-caption { display: flex; align-items: center; }
+.eotw-map-dock { justify-content: space-between; min-height: 42px; padding: 2px 12px 2px 15px; gap: 8px; border-top: 1px solid var(--atlas-line); }
+.eotw-map-total { color: #bdd0d3; font-size: 12px; }
+.eotw-map-total strong { color: #edf4ef; font: 550 14px/1 "IBM Plex Mono", monospace; }
+.eotw-controls { display: flex; gap: 2px; align-items: center; }
+.eotw-map button { font: inherit; cursor: pointer; }
+.eotw-controls button, .eotw-cluster button, .eotw-map-layers button { border: 0; background: transparent; color: var(--atlas-ink); }
+.eotw-controls button, .eotw-cluster-head button { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 7px; padding: 0; }
+.eotw-controls button:disabled { color: #718a94; opacity: .68; cursor: default; }
+.eotw-controls button:hover:enabled, .eotw-cluster button:hover, .eotw-map-layers button:hover { background: #294752; color: #f1fffa; }
+.eotw-map-layers { flex-wrap: wrap; gap: 4px; padding: 5px 12px; border-top: 1px solid #34505b; }
+.eotw-layer-icon { color: #8babb3; margin: 0 4px 0 1px; }
+.eotw-map-layers button {
+  display: inline-flex; align-items: center; gap: 6px;
+  min-height: 32px; padding: 4px 8px;
+  color: #bcd2d6; border-radius: 7px;
+  font-size: 11.5px; line-height: 1.3;
 }
-.eotw-controls button {
-  display: grid;
-  place-items: center;
-  width: 36px;
-  height: 35px;
-  padding: 0;
+.eotw-map-layers button[aria-pressed="true"] { background: #213d48; }
+.eotw-map-layers button[aria-pressed="true"] svg { color: var(--atlas-teal); }
+.eotw-map-layers button[aria-pressed="false"] { color: #adc1c6; text-decoration: line-through; }
+.eotw-map-layers button[aria-pressed="false"] svg, .eotw-map-layers button[aria-pressed="false"] i { opacity: .4; }
+.eotw-area-swatch { display: inline-block; width: 11px; height: 8px; transform: skew(-12deg); background: #a37a4d; border: 1px solid #ffd393; }
+.eotw-map-caption { flex-wrap: wrap; justify-content: space-between; gap: 4px 12px; padding: 4px 15px 10px; font: 10px/1.6 "IBM Plex Mono", monospace; color: #9db5bc; }
+.eotw-priority-key { display: flex; flex-wrap: wrap; gap: 4px 12px; }
+.eotw-priority-key span { display: inline-flex; gap: 5px; align-items: center; }
+.eotw-priority-key i { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--mp); }
+.eotw-priority-key .mp-high i { outline: 1px solid var(--mp); outline-offset: 1.5px; margin: 0 2px; }
+.eotw-atlas-source { margin-left: auto; }
+.eotw-cluster { padding: 7px 12px 10px; border-block: 1px solid #41606a; background: #18333f; }
+.eotw-cluster-head { display: flex; align-items: start; justify-content: space-between; gap: 14px; margin-bottom: 5px; }
+.eotw-cluster-head > div { display: grid; gap: 4px; }
+.eotw-cluster-head small, .eotw-open-report small { color: #abccd0; font: 11px/1.45 "IBM Plex Mono", monospace; }
+.eotw-cluster-head strong { color: #edf6ef; font-size: 15px; font-weight: 650; line-height: 1.4; }
+.eotw-cluster-list { max-height: 218px; overflow-y: auto; overscroll-behavior: contain; }
+.eotw-cluster .eotw-open-report { display: flex; width: 100%; align-items: center; gap: 10px; justify-content: space-between; padding: 8px 5px; border-top: 1px solid #3a5662; text-align: left; }
+.eotw-open-report > span { display: grid; gap: 3px; }
+.eotw-open-report strong { color: #e1eeee; font: 550 13px/1.45 Inter, system-ui, sans-serif; }
+.eotw-open-report em { color: #b3c8ca; font: normal 11px/1.4 Inter, system-ui, sans-serif; }
+.eotw-open-report > svg { flex: none; color: var(--atlas-teal); }
+.eotw-cluster .eotw-area-focus { display: inline-flex; align-items: center; gap: 5px; padding: 7px 5px; border-radius: 5px; color: var(--atlas-teal); font-size: 12px; }
+.eotw-scan-sweep { position: absolute; z-index: 1; inset: 0; pointer-events: none; background: linear-gradient(103deg, transparent 40%, #90d8cb09 47%, #9be8d833 50%, transparent 51%); animation: atlas-scan 1.05s ease-out both; }
+@keyframes atlas-scan { from { transform: translateX(-105%); } to { transform: translateX(105%); opacity: 0; } }
+.map-sr { position: absolute; width: 1px; height: 1px; margin: -1px; clip-path: inset(50%); overflow: hidden; white-space: nowrap; }
+@container (max-width: 550px) {
+  .eotw-map-labels .ml-continent { font-size: 10px; letter-spacing: .55px; }
+  .eotw-map-labels .ml-ocean { font-size: 9px; letter-spacing: .1px; }
+  .eotw-map-dock { padding-inline: 10px 5px; }
+  .eotw-controls { gap: 1px; }
+  .eotw-controls button, .eotw-cluster-head button { width: 43px; height: 43px; }
+  .eotw-map-layers { padding: 3px 8px; }
+  .eotw-map-layers button { min-height: 36px; }
+  .eotw-map-caption { padding-inline: 10px; }
 }
-.eotw-controls button + button {
-  border-top: 1px solid #414e50;
+@media (pointer: coarse) {
+  .eotw-controls button, .eotw-cluster-head button { min-height: 44px; min-width: 44px; }
+  .eotw-map-layers button, .eotw-cluster .eotw-area-focus { min-height: 44px; }
 }
-.eotw-controls button:disabled {
-  color: #889493;
-  cursor: default;
-}
-.eotw-controls button:hover:enabled,
-.eotw-cluster button:hover {
-  background: #334044;
-}
-.eotw-map-caption {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-  padding: 8px 12px;
-  border-top: 1px solid #333f42;
-  font:
-    12px/1.4 "IBM Plex Mono",
-    monospace;
-  color: #bdc8c9;
-}
-.eotw-map-caption i {
-  display: inline-block;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: #ffc07b;
-  margin-right: 4px;
-}
-.eotw-cluster {
-  position: absolute;
-  left: 10px;
-  top: 10px;
-  width: min(320px, calc(100% - 77px));
-  max-height: 72%;
-  overflow: auto;
-  background: #182023;
-  box-shadow: 0 4px 16px #0009;
-  border: 1px solid #667274;
-  border-radius: 3px;
-}
-.eotw-cluster > div {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 8px 12px;
-  font-size: 14px;
-}
-.eotw-cluster button {
-  padding: 8px;
-  line-height: 1.4;
-}
-.eotw-cluster > button {
-  display: block;
-  width: 100%;
-  text-align: left;
-  border-top: 1px solid #3e484a;
-  font-size: 14px;
-}
-.map-sr {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border: 0;
-}
-@media (max-width: 600px) {
-  .eotw-map-canvas {
-    min-height: 190px;
-  }
-  .eotw-controls {
-    right: 7px;
-    top: 7px;
-  }
-  .eotw-controls button {
-    width: 32px;
-    height: 32px;
-  }
-}
-
-.eotw-map { border-color:#394044; background:#13191c; border-radius:4px }
-.eotw-map-canvas { background:radial-gradient(ellipse at 47% 46%,#243137 0%,#192226 56%,#11171a 100%) }
-.eotw-country { fill:#435154; stroke:#1c292d; stroke-width:.9px }
-.eotw-country-name { fill:#d0d9da; paint-order:stroke; stroke:#253034; stroke-width:.35; font-family:"IBM Plex Mono",monospace; pointer-events:none }
-.eotw-alert-area { stroke:#ffb67f; stroke-width:1.5px; fill:#f29d67; fill-opacity:.32; pointer-events:none }
-.eotw-map .eotw-controls { z-index:2; box-shadow:0 3px 14px #0005 }
-.eotw-controls button[aria-pressed=true] { color:#ffbd80; background:#332c25 }
-.eotw-cluster { z-index:3; box-shadow:0 12px 36px #0008 }
-.eotw-cluster small { display:block; margin-bottom:3px; font:12px/1.3 "IBM Plex Mono",monospace; color:#b3c0c5 }
-.eotw-cluster .eotw-area-focus { color:#f3bf8c }
-.eotw-map-key { display:flex; flex-wrap:wrap; align-items:center; gap:6px 15px; padding:8px 12px; border-top:1px solid #374044; background:#181e21; font:12px/1.45 "IBM Plex Mono",monospace; color:#c9d1d2 }
-.eotw-map-key span { display:inline-flex; align-items:center; gap:6px }
-.eotw-map-key i { display:inline-block; width:7px; height:7px; flex:none }
-.eotw-map-key .mark-weather { transform:rotate(45deg); width:6px; height:6px }
-.eotw-map-key .mark-seismic { border-radius:50% }
-.eotw-map-key .mark-natural { clip-path:polygon(50% 0,100% 100%,0 100%) }
-.eotw-map-key .mark-high { width:9px; height:9px; border:1px solid #ff725f; outline:1px solid #ff725f; outline-offset:1.5px; border-radius:50% }
-.eotw-scan-sweep { position:absolute; inset:0; z-index:1; background:linear-gradient(100deg,transparent 42%,#85c2b214 48%,#abd0c526 50%,transparent 51%); pointer-events:none; animation:eotw-scan-received 1.35s ease-out both }
-@keyframes eotw-scan-received { from{transform:translateX(-100%)} to{transform:translateX(105%);opacity:0} }
-.eotw-alert-ring { transform-origin:center; transform-box:fill-box; animation:eotw-priority 2s ease-out 2 }
-@keyframes eotw-priority { 0%,100%{opacity:.73} 50%{opacity:.28} }
-@media (prefers-reduced-motion: reduce){.eotw-scan-sweep{display:none}.eotw-alert-ring{animation:none}}
-@media(max-width:600px){.eotw-map-key{gap:5px 12px}.eotw-controls button{width:36px;height:36px}}
+@media (prefers-reduced-motion: reduce) { .eotw-scan-sweep { display: none; } }
