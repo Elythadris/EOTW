@@ -30,3 +30,13 @@ To enable cross-device accounts, turn on Netlify Identity for the project, confi
 ## Verification
 
 The Node tests exercise guest isolation, verified account storage, conditional writes, JSON limits, same-origin checks, citation matching, source-only responses and concurrent daily reservations. Live provider credentials and deployed Identity email or OAuth configuration are required to verify those external flows.
+
+## Automatic Situation Briefing
+
+The Command Center reads `GET /api/situation?location=Maui`. The endpoint returns three sections, with a list of source IDs for each point. The citation index carries the publisher, original URL, publication time, region and EOTW story ID. `updatedAt` is the feed check time. `generatedAt` is the time of the model run. Source-only responses leave `generatedAt` empty.
+
+The independent `briefing-digest` scheduled function checks two minutes after the five-minute collection interval. On a published production deployment it can reserve one generation attempt per six-hour UTC window. Only qualified local, US and global signals enter a situation briefing. The seven-day window excludes expired notices, speculation and social posts. When no signal qualifies locally the response says so. Materially unchanged evidence reuses the saved edition. Every generated point must cite an indexed source and match a short excerpt. A new lead, changed lead tier, changed high-priority incident set, or revised or expired cited report causes the dashboard to show the current source briefing immediately. A failed scheduled attempt does not delay this read-time update. A reporting-store outage can serve a recent retained edition with its stale flag. [Netlify scheduled functions](https://docs.netlify.com/build/functions/scheduled-functions/)
+
+`AI_BRIEFING_DAILY_LIMIT` controls the scheduler’s own allowance, default four, range zero to four. Each scheduled attempt also consumes one of the site-wide `AI_DAILY_LIMIT` permits shared with Ask EOTW. The scheduler uses a nine-second provider timeout, zero SDK retries and a maximum 850 completion tokens inside Netlify’s 30-second scheduled-function limit. Daily quotas count attempts, including failed responses. Public GETs and browser refreshes use cached or source-only reporting. The scheduled edition covers Maui. A custom location receives the same regional source selection and current source-linked monitoring criteria.
+
+The analyst can retrieve the Signals view, ranked public reports, bounded matched overlap groups and explicitly attributed evidence or counterevidence in reviewed editorial records. A shared time and place is described as reporting overlap. External source links alone establish neither corroboration nor a contradiction.

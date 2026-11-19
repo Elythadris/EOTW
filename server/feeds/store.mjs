@@ -1,3 +1,6 @@
+import { annotate, observe } from "./detection.mjs";
+import { addPoll } from "./baseline.mjs";
+import { collapseBulletins, signalDesk, retainEpisodeChanges } from "./signal-desk.mjs";
 import { createHash } from "node:crypto";
 import { getStore } from "@netlify/blobs";
 import { editorialTypes } from "./editorial.mjs";
@@ -69,11 +72,16 @@ export async function collect({store=repository(),now=Date.now(),defs=definition
     gdelt.nextDue = now;
   }
   const due=defs.filter(def=>!def.disabled && (!state.providers[def.id] || (state.providers[def.id].nextDue || 0)<=now));
-  const result=await Promise.allSettled(due.map(def=>load(def,sourceState(state,def.id),{now})));
+  const result=await Promise.allSettled(due.map(def=>{
+    const old=sourceState(state,def.id);
+    const validators=(["nws-us","nws-hi","usgs","eonet"].includes(def.id) && old.signalSchema!==1) ? {...old,etag:null,modified:null} : old;
+    return load(def,validators,{now});
+  }));
   const pool=new Map(state.events.map(e=>[e.id,e]));
-  const byUrl=new Map(), byHeadline=new Map();
+  const byUrl=new Map(), byHeadline=new Map(), bySeries=new Map();
   function index(e) {
     byUrl.set(e.url,e.id);
+    if(e.origin?.series && (pool.get(bySeries.get(e.origin.series))?.updatedAt || "")<=e.updatedAt) bySeries.set(e.origin.series,e.id);
     const fp=fingerprint(e);
     if (fp) byHeadline.set(fp,e.id);
   }
@@ -83,7 +91,7 @@ export async function collect({store=repository(),now=Date.now(),defs=definition
   for (const [offset,def] of due.entries()) {
     const attempt=result[offset];
     const before=sourceState(state,def.id);
-    const entry={...before,lastAttempt:stamp(now),nextDue:now+def.minutes*60000};
+    const entry={...before,lastAttempt:stamp(now),nextDue:Math.floor(now/300000)*300000+def.minutes*60000};
     state.providers[def.id]=entry;
     if (attempt.status === "rejected") {
       const error=attempt.reason;
@@ -102,27 +110,40 @@ export async function collect({store=repository(),now=Date.now(),defs=definition
       entry.primaryRetryAfter=batch.primaryRetryAfter || 0;
       if (Object.hasOwn(batch,"galEtag")) entry.galEtag=batch.galEtag;
     }
-    if (batch.unchanged) continue;
+    const continuous=before.status==="ok" && now-Date.parse(before.lastSuccess)<=def.minutes*90000;
+    entry.signalSchema=1;
+    const observed=[];
+    if (batch.unchanged) {addPoll(state,def.id,now,observed,continuous);continue;}
     entry.etag=batch.etag || null;
     entry.modified=batch.modified || null;
     const digest=createHash("sha256").update(JSON.stringify(batch.events.map(({observedAt,...rest})=>rest))).digest("hex");
-    if (digest === before.digest && !def.transient) continue;
+    if (digest === before.digest && !def.transient) {addPoll(state,def.id,now,observed,continuous);continue;}
     entry.digest=digest;
     const ids=[];
     for (const received of batch.events) {
-      const id=byUrl.get(received.url) || byHeadline.get(fingerprint(received)) || received.id;
-      const old=pool.get(id);
-      const next=combine(old,received,stamp(now));
+      // Zone-specific NWS updates keep their original record. Distinct zones can share a VTEC episode.
+      const references=(received.origin?.references || []).map(url=>pool.get(byUrl.get(url))).filter(Boolean);
+      const predecessor=references.find(e=>e.location===received.location);
+      const id=byUrl.get(received.url) || bySeries.get(received.origin?.series) || predecessor?.id || byHeadline.get(fingerprint(received)) || received.id;
+      let old=pool.get(id);
+      const newNotice=received.source==="National Weather Service" && old && old.url!==received.url;
+      if (newNotice && old.updatedAt>received.updatedAt) old=undefined;
+      const combined=combine(old,received,stamp(now));
+      if (newNotice) {combined.id=received.id;combined.publishedAt=received.publishedAt;}
+      const next=received.transient ? combined : observe(old,combined,received,now,continuous);
+      if(!old) observed.push(next);
       pool.set(next.id,next);
       byUrl.set(received.url,next.id);
       index(next);
       ids.push(next.id);
       if (!next.transient && JSON.stringify(old) !== JSON.stringify(next)) changed.set(next.id,next);
     }
+    addPoll(state,def.id,now,observed,continuous);
     entry.ids=[...new Set(def.replace ? ids : [...ids,...(before.ids || [])])].slice(0,180);
   }
   const activeIds=new Set(defs.filter(def=>!def.disabled).flatMap(def=>sourceState(state,def.id).ids || []));
   state.events=[...pool.values()].filter(e=>activeIds.has(e.id) && (now-Date.parse(e.updatedAt)<45*DAY || e.expiresAt && Date.parse(e.expiresAt)>now));
+  retainEpisodeChanges(state,now);
   const byDay=new Map();
   for (const event of changed.values()) {
     const day=event.id.slice(0,10);
@@ -131,7 +152,7 @@ export async function collect({store=repository(),now=Date.now(),defs=definition
   }
   await processInBatches([...byDay.keys()],8,day=>updateDay(store,day,byDay.get(day)));
   state.days=[...new Set([...state.days,...byDay.keys()])].sort().reverse();
-  if (successes) state.updatedAt=stamp(now);
+  if (successes) {state.updatedAt=stamp(now);state.lastSignalScan=state.updatedAt;}
   if (!await writeConditionally(store,SNAPSHOT_KEY,state,previous)) throw new Error("Collector snapshot superseded. Retry on next schedule.");
   return {checked:due.length,succeeded:successes,changed:changed.size,events:state.events.length};
 }
@@ -144,7 +165,7 @@ function matches(event,params) {
   return !params.scope || params.scope === "all" || event.scope === params.scope;
 }
 function responseEvent(event,detail) {
-  const {interest,interestType,expiresAt,observedAt,transient,topicClaim,...rest}=event;
+  const {interest,interestType,expiresAt,observedAt,observations,origin,transient,topicClaim,...rest}=event;
   return {...rest,expiresAt,topicClaim,timeline:detail ? event.timeline : event.timeline.slice(-8)};
 }
 const archivePointer = /^(\d{4}-\d{2}-\d{2}):(\d{1,6})$/;
@@ -152,7 +173,7 @@ export function parseFeedParams(url) {
   const p=url.searchParams;
   const query={type:p.get("type") || "all",view:p.get("view") || "briefing",scope:p.get("scope") || "all",q:(p.get("q") || "").trim(),
     location:(p.get("location") || "Maui").trim(),id:p.get("id") || "",cursor:p.get("cursor") || "",limit:Number(p.get("limit") || 100)};
-  if ((query.type !== "all" && !Object.hasOwn(editorialTypes,query.type)) || !["briefing","trending","rabbit","archive"].includes(query.view) || !["all","local","us","global","conspiracy"].includes(query.scope)
+  if ((query.type !== "all" && !Object.hasOwn(editorialTypes,query.type)) || !["briefing","trending","rabbit","archive","signals"].includes(query.view) || !["all","local","us","global","conspiracy"].includes(query.scope)
     || query.q.length>220 || query.location.length>100 || (query.id && !validId(query.id)) || !Number.isInteger(query.limit)
     || query.limit<1 || query.limit>200 || (query.cursor && !(/^\d{1,6}$/.test(query.cursor) || archivePointer.test(query.cursor)))) throw new Error("Invalid feed parameters.");
   return query;
@@ -203,9 +224,17 @@ export async function searchEvents(input={}, {store=repository(),now=Date.now(),
   if (params.id) {
     if (!validId(params.id)) return {...metadata,events:[],nextCursor:null};
     const archived=live.find(e=>e.id===params.id) || (await store.get(dayKey(params.id.slice(0,10)),{type:"json"}))?.find(e=>e.id===params.id);
-    return {...metadata,events:archived ? [responseEvent(ranked(archived,now,params.location),true)] : [],nextCursor:null};
+    return {...metadata,events:archived ? [responseEvent({...ranked(archived,now,params.location),intelligence:annotate(archived,now,params.location) || undefined},true)] : [],nextCursor:null};
   }
   if (params.view === "archive") return {...metadata,...await archivePage(store,state.days,params,now)};
+  if (params.view==="signals" || params.view==="trending") {
+    const desk=signalDesk(live,state,health,now,params.location);
+    const selected=(params.view==="signals"?desk.events:desk.hotEvents).filter(e=>matches(e,params));
+    const start=/^\d{1,6}$/.test(params.cursor || "") ? Number(params.cursor) : 0;
+    return {...metadata,...(params.view==="signals"?{intelligence:desk.intelligence}:{}),
+      events:selected.slice(start,start+params.limit).map(e=>responseEvent(e,false)),
+      nextCursor:start+params.limit<selected.length ? String(start+params.limit) : null};
+  }
   let events=live.filter(e=>(!e.expiresAt || Date.parse(e.expiresAt)>now) && (!e.transient || params.view === "rabbit" || params.scope === "conspiracy"))
     .filter(e=>params.view !== "rabbit" || e.topicClaim)
     .filter(e=>params.view !== "trending" || now-Date.parse(e.updatedAt)<=DAY)
@@ -223,6 +252,7 @@ export async function searchEvents(input={}, {store=repository(),now=Date.now(),
   } else if (params.view === "briefing") {
     events=briefingOrder(events,now);
   }
+  if (params.view === "briefing") events=collapseBulletins(events);
   const start=/^\d{1,6}$/.test(params.cursor || "") ? Number(params.cursor) : 0;
   return {...metadata,events:events.slice(start,start+params.limit).map(e=>responseEvent(e,false)),nextCursor:start+params.limit<events.length ? String(start+params.limit) : null};
 }

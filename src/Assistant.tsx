@@ -72,6 +72,7 @@ export default function Assistant({
   state,
   story,
   page,
+  category,
   scope,
   query,
 }: {
@@ -80,6 +81,7 @@ export default function Assistant({
   state: PrefsState;
   story?: IntelEvent;
   page: string;
+  category: string;
   scope: string;
   query: string;
 }) {
@@ -121,7 +123,7 @@ export default function Assistant({
           question: input,
           location: state.prefs.location,
           storyId: story?.id,
-          filters: { view: page, scope, ...(query ? { q: query } : {}) },
+          filters: { view: page, scope, ...(category ? { category } : {}), ...(query ? { q: query } : {}) },
           history: previous,
         }),
       });
@@ -170,7 +172,7 @@ export default function Assistant({
     ? "What evidence supports this report?"
     : query
       ? "What does the archive report about " + query + "?"
-      : "What are the latest reports near " + state.prefs.location + "?";
+      : page === "signals" ? "What changed in the priority signals near " + state.prefs.location + "?" : "What are the latest reports near " + state.prefs.location + "?";
   const submit = (e: FormEvent) => {
     e.preventDefault();
     void send(question);
@@ -180,10 +182,10 @@ export default function Assistant({
       <div className="assistant-context">
         <Radio size={14} />
         {story
-          ? "Reading this story"
+          ? "Analyst · Selected story"
           : query
-            ? "Investigating " + query
-            : "Briefing for " + state.prefs.location}
+            ? "Analyst · Investigating " + query
+            : (page === "map" ? "Analyst · Map" + (category ? " · " + category : "") : "Intelligence analyst") + " · " + state.prefs.location}
       </div>
       <div className="chat-log" role="log" aria-label="Conversation">
         {!history.length && (
@@ -191,15 +193,15 @@ export default function Assistant({
             <span className="chat-emblem">
               <BookOpen size={26} />
             </span>
-            <h3>Follow the evidence.</h3>
+            <h3>Ask the intelligence analyst</h3>
             <p>
-              Ask about a report, compare accounts, or trace a claim through the
-              source archive.
+              Investigate priority signals, compare source accounts, or trace a claim through the archive. Answers link back to the available evidence.
             </p>
             <button className="prompt" onClick={() => void send(start)}>
               {start}
               <CornerDownLeft size={16} />
             </button>
+            {page === "signals" && <button className="prompt" onClick={()=>void send("What should I monitor next?")}>What should I monitor next?<CornerDownLeft size={16}/></button>}
           </div>
         )}
         {history.map((m, i) => {

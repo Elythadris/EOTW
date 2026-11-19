@@ -1,3 +1,5 @@
+import { alertArea } from "./alert-area.mjs";
+import { nwsKeys } from "./detection.mjs";
 import { galArticles, galBytes, galUrl } from "./gal.mjs";
 import { editorialRows } from "./editorial.mjs";
 import { XMLParser } from "fast-xml-parser";
@@ -31,6 +33,7 @@ export function usgs(text) {
       title: p.title,
       url: p.url,
       source: "USGS",
+      origin: { magnitude: p.mag, pager: p.alert || null, series: typeof item.id === "string" ? "usgs:" + item.id : null },
       publishedAt: p.time,
       updatedAt: p.updated,
       category: "Earthquake",
@@ -70,6 +73,13 @@ export function nws(text) {
         summary: p.description,
         url: item.id || p["@id"],
         source: "National Weather Service",
+        alertArea: alertArea(item.geometry),
+        origin: {
+          ...nwsKeys(p), event: p.event, severity: p.severity, urgency: p.urgency, certainty: p.certainty,
+          onset: date(p.onset || p.effective), incidentStart: date(p.onset || p.sent),
+          references: (p.references || []).map(ref => ref?.["@id"]).filter(url =>
+            typeof url === "string" && url.startsWith("https://api.weather.gov/alerts/")).slice(0, 8),
+        },
         publishedAt: p.sent,
         expiresAt: p.ends || p.expires,
         category: "Weather",
@@ -104,6 +114,7 @@ function eonet(text) {
       {
         url: item.link,
         source: "NASA EONET",
+        origin: { kind, magnitude: latest.magnitudeValue, unit: latest.magnitudeUnit, series: "eonet:" + item.id },
         title: item.title,
         summary: item.description || kind + " tracked by NASA EONET.",
         category: "Natural event",
@@ -242,7 +253,7 @@ const rssSource = (id, name, url, minutes, options) => ({
   parse: (text) => rss(text, { ...options, name }),
 });
 const query =
-  '(earthquake OR hurricane OR wildfire OR ceasefire OR sanctions OR whistleblower OR QAnon OR UFO OR "government secrecy" OR "conspiracy theory") sourcelang:english';
+  '(earthquake OR hurricane OR wildfire OR ceasefire OR sanctions OR ransomware OR outage OR "bank failure" OR "sovereign default" OR whistleblower OR QAnon OR UFO OR "government secrecy" OR "conspiracy theory") sourcelang:english';
 const endpoint =
   "https://api.gdeltproject.org/api/v2/doc/doc?" +
   new URLSearchParams({
@@ -325,6 +336,14 @@ export function definitions(env = process.env) {
       maxBytes: 400_000,
       parse: editorialRows,
     },
+    ...[
+      ["maui-mema", "Maui County - News Flash - MEMA News Flash", "MEMA-News-Flash-50"],
+      ["maui-water", "Maui County - News Flash - Water Department", "Water-Department-7"],
+      ["maui-road", "Maui County - News Flash - Road Notifications", "Road-Notifications-3"],
+    ].map(([id, name, channel]) => rssSource(
+      id, name, "https://www.mauicounty.gov/RSSFeed.aspx?CID=" + channel + "&ModID=1", 15,
+      { location: "Maui County, Hawaiʻi", county: "15009", scope: "us", category: "County bulletin", official: true },
+    )),
     {
       id: "federal",
       name: "Federal Register",

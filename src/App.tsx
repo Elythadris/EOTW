@@ -1,7 +1,6 @@
 import {
   useCallback,
   useEffect,
-  useRef,
   useState,
   type MouseEvent,
   type ReactNode,
@@ -30,6 +29,8 @@ import {
 } from "lucide-react";
 import Assistant from "./Assistant";
 import Briefing from "./Briefing";
+import { useSignalNotifications } from "./notifications";
+import { ClaimReview, StoryReview } from "./Operations";
 import {
   ArticleDetail,
   FilterBar,
@@ -45,7 +46,6 @@ import EventMap from "./EventMap";
 import Research from "./Research";
 import Watchlist, { LocationForm } from "./Watchlist";
 import {
-  activePriority,
   dateTime,
   relative,
   type EditorialType,
@@ -65,7 +65,7 @@ const menu = [
   {
     page: "trending",
     path: "/trending",
-    label: "Trending 24h",
+    label: "Hot 24",
     icon: TrendingUp,
   },
   {
@@ -86,15 +86,15 @@ const menu = [
 ] as const;
 const paths = Object.fromEntries(menu.map((x) => [x.page, x.path]));
 const headings: Record<string, [string, string]> = {
-  briefing: ["Command center", "Your local, national, and global briefing."],
+  briefing: ["Command center", "Significant developments, active warnings, and changes in the latest scan."],
   map: [
     "Live map",
     "Explore located reports and trace each marker to its source.",
   ],
-  trending: ["Trending 24h", "Reports gaining attention in the past 24 hours."],
+  trending: ["Hot 24", "Significant developments and narratives gaining momentum in the past 24 hours."],
   rabbit: [
     "Rabbit hole",
-    "Trace unusual reports, emerging theories, and the evidence behind each claim.",
+    "Track unusual reports and emerging narratives. Inspect the evidence, counterevidence, and verification status.",
   ],
   investigate: [
     "Investigate",
@@ -173,6 +173,7 @@ export default function App() {
   const [current, setCurrent] = useState(route);
   const [scope, setScope] = useState<Scope | "conspiracy">("all");
   const [category, setCategory] = useState("");
+  const [allMapReports, setAllMapReports] = useState(false);
   const [drawer, setDrawer] = useState(false);
   const [ask, setAsk] = useState(false);
   const [place, setPlace] = useState(false);
@@ -189,7 +190,9 @@ export default function App() {
     !(page === "investigate" && !query) &&
     !(isStory && !id);
   const requestView =
-    page === "trending"
+    page === "briefing" || (page === "map" && !allMapReports)
+      ? "signals"
+      : page === "trending"
       ? "trending"
       : page === "rabbit"
         ? "rabbit"
@@ -210,7 +213,7 @@ export default function App() {
     loadPage,
   );
   const extraAlerts = useFeed(
-    { view: "briefing", scope: "all", location: prefs.location },
+    { view: "signals", scope: "all", location: prefs.location },
     prefs.notifications && page !== "briefing",
   );
   const events = feed.data.events;
@@ -313,52 +316,9 @@ export default function App() {
           "EOTW sourced current-events coverage.",
       );
   }, [page, title, selected?.summary]);
-  const seenAlerts = useRef<Set<string> | null>(null);
-  const personalFeed = page === "briefing" ? feed.data : extraAlerts.data;
-  useEffect(() => {
-    if (!prefs.notifications) {
-      seenAlerts.current = null;
-      return;
-    }
-    if (!personalFeed.updatedAt) return;
-    const matched = personalFeed.events.filter(
-      (e) =>
-        activePriority(e) &&
-        (e.scope === "local" ||
-          prefs.saved.includes(e.id) ||
-          prefs.topics.some((t) =>
-            (e.title + " " + e.summary + " " + e.category)
-              .toLowerCase()
-              .includes(t.toLowerCase()),
-          )),
-    );
-    const sig = (e: IntelEvent) => e.id + "|" + e.updatedAt;
-    if (seenAlerts.current === null) {
-      seenAlerts.current = new Set(matched.map(sig));
-      return;
-    }
-    const fresh = matched.filter((e) => !seenAlerts.current!.has(sig(e)));
-    for (const e of fresh) seenAlerts.current.add(sig(e));
-    if (seenAlerts.current.size > 1500)
-      seenAlerts.current = new Set(matched.map(sig));
-    if (!fresh.length) return;
-    const e = fresh[0];
-    setMessage("New priority report: " + e.title);
-    if ("Notification" in window && Notification.permission === "granted")
-      try {
-        const n = new Notification("EOTW · Priority report", {
-          body: e.title,
-          tag: e.id,
-        });
-        n.onclick = () => {
-          window.focus();
-          navigate("/story/" + encodeURIComponent(e.id));
-          n.close();
-        };
-      } catch {
-        /* In-app alert remains available. */
-      }
-  }, [personalFeed, prefs.notifications, prefs.saved, prefs.topics, navigate]);
+  const alerts = page === "briefing" ? feed : extraAlerts;
+  const openNotification = useCallback((id:string) => navigate("/story/" + encodeURIComponent(id)), [navigate]);
+  useSignalNotifications(online && !alerts.error ? alerts.data : null, prefs, setMessage, openNotification);
   const nav = (mobile = false) => (
     <nav
       className="side-nav"
@@ -387,7 +347,7 @@ export default function App() {
     </nav>
   );
   const mapped = events.filter(
-    (e) => Number.isFinite(e.lat) && Number.isFinite(e.lon),
+    (e) => Number.isFinite(e.lat) && Number.isFinite(e.lon) && (scope === "all" || scope === e.scope),
   );
   const mapRows = mapped.filter((e) => !category || category === e.category);
   const fail = feed.error || (!online ? "You are offline." : "");
@@ -407,6 +367,8 @@ export default function App() {
     rows.length ? (
       <>
         {rows.map((e, i) => (
+          page === "rabbit" ? <ClaimReview key={e.id} event={e} open={open} saved={prefs.saved.includes(e.id)} save={()=>save(e)}/> :
+          page === "trending" ? <StoryReview key={e.id} event={e} open={open} saved={prefs.saved.includes(e.id)} save={()=>save(e)} rank={i}/> :
           <StoryRow
             key={e.id}
             e={e}
@@ -466,6 +428,9 @@ export default function App() {
           </button>
         </div>
       </header>
+      <nav className="quick-views" aria-label="Quick views">
+        {menu.slice(0,4).map(item=><a key={item.page} href={item.path} aria-current={item.page===page?"page":undefined} onClick={e=>intercept(e,item.path)}><item.icon size={14}/>{item.page==="briefing"?"Command":item.page==="map"?"Map":item.label}</a>)}
+      </nav>
       <div className="workspace">
         <aside className="rail">
           {nav()}
@@ -520,7 +485,8 @@ export default function App() {
                   <h1>{headings[page][0]}</h1>
                   <p>{headings[page][1]}</p>
                 </div>
-                {loadPage && page !== "investigate" && (
+                {page === "briefing" && <button className="location-control" onClick={()=>setPlace(true)}><MapPin size={16}/><span><small>Local focus</small>{prefs.location}</span><ChevronDown size={15}/></button>}
+                {loadPage && page !== "investigate" && page !== "briefing" && (
                   <div className="freshness">
                     <span>
                       <i className={last && !fail && !stale ? "good" : ""} />
@@ -548,10 +514,15 @@ export default function App() {
                 save={save}
                 go={go}
                 setLocation={() => setPlace(true)}
+                ask={() => setAsk(true)}
               />
             )}
             {page === "map" && (
               <>
+                <div className="map-view-choices" role="group" aria-label="Map dataset">
+                  <button aria-pressed={!allMapReports} onClick={()=>{setAllMapReports(false);setCategory("")}}>Priority signals</button>
+                  <button aria-pressed={allMapReports} onClick={()=>{setAllMapReports(true);setCategory("")}}>All mapped reports</button>
+                </div>
                 <div className="map-tools">
                   <FilterBar scope={scope} set={setScope} />
                   <label>
@@ -570,14 +541,7 @@ export default function App() {
                   </label>
                 </div>
                 <section className="panel full-map">
-                  <EventMap events={mapRows} onSelect={open} />
-                  <div className="map-caption">
-                    <span>
-                      <i className="map-dot" />
-                      Hazards use source coordinates. News markers show broad
-                      reporting areas.
-                    </span>
-                  </div>
+                  <EventMap events={mapRows} onSelect={open} scanAt={feed.data.intelligence?.lastScan || feed.data.updatedAt} />
                 </section>
                 <section className="panel">
                   <PanelHeading icon={<MapPin size={18} />}>
@@ -646,9 +610,7 @@ export default function App() {
                   <details className="method">
                     <summary>How are stories ranked?</summary>
                     <p>
-                      Ranking uses published signals such as recency, severity,
-                      source coverage, and observed discussion. Each story lists
-                      the factors available for its ranking.
+                      Hot 24 ranks qualifying activity from the last day using significance, fresh updates, source coverage, or measured discussion. Open each assessment to inspect the available ranking factors.
                     </p>
                   </details>
                 )}
@@ -829,7 +791,8 @@ export default function App() {
         onClose={() => setAsk(false)}
         state={prefsState}
         story={selected}
-        page={page}
+        page={page === "briefing" ? "signals" : page}
+        category={page === "map" ? category : ""}
         scope={coverage}
         query={query}
       />

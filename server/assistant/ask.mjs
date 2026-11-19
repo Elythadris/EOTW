@@ -18,7 +18,7 @@ export function askHandler({
       const records = await retrieve(query, search);
       if (!records.length) return reply(sourceAnswer([], "offline"));
       const generate = model(env, context);
-      if (!generate) return reply(sourceAnswer(records, "offline"));
+      if (!generate) return reply(sourceAnswer(records, "offline", query));
       try {
         const ok = await permit({
           ip: context?.ip,
@@ -26,19 +26,19 @@ export function askHandler({
           limits: dailyLimits(env),
           context,
         });
-        if (!ok) return reply(sourceAnswer(records, "budget"));
+        if (!ok) return reply(sourceAnswer(records, "budget", query));
       } catch {
         console.warn("EOTW AI permit storage unavailable");
-        return reply(sourceAnswer(records, "budget"));
+        return reply(sourceAnswer(records, "budget", query));
       }
       try {
         const result = await generate(query, records);
         return reply(
-          groundedAnswer(result, records) || sourceAnswer(records, "unchecked"),
+          groundedAnswer(result, records) || sourceAnswer(records, "unchecked", query),
         );
       } catch {
         console.warn("EOTW provider response unavailable");
-        return reply(sourceAnswer(records, "unchecked"));
+        return reply(sourceAnswer(records, "unchecked", query));
       }
     } catch (error) {
       return errorResponse(error);

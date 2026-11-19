@@ -149,3 +149,27 @@
     height: 32px;
   }
 }
+
+.eotw-map { border-color:#394044; background:#13191c; border-radius:4px }
+.eotw-map-canvas { background:radial-gradient(ellipse at 47% 46%,#243137 0%,#192226 56%,#11171a 100%) }
+.eotw-country { fill:#435154; stroke:#1c292d; stroke-width:.9px }
+.eotw-country-name { fill:#d0d9da; paint-order:stroke; stroke:#253034; stroke-width:.35; font-family:"IBM Plex Mono",monospace; pointer-events:none }
+.eotw-alert-area { stroke:#ffb67f; stroke-width:1.5px; fill:#f29d67; fill-opacity:.32; pointer-events:none }
+.eotw-map .eotw-controls { z-index:2; box-shadow:0 3px 14px #0005 }
+.eotw-controls button[aria-pressed=true] { color:#ffbd80; background:#332c25 }
+.eotw-cluster { z-index:3; box-shadow:0 12px 36px #0008 }
+.eotw-cluster small { display:block; margin-bottom:3px; font:12px/1.3 "IBM Plex Mono",monospace; color:#b3c0c5 }
+.eotw-cluster .eotw-area-focus { color:#f3bf8c }
+.eotw-map-key { display:flex; flex-wrap:wrap; align-items:center; gap:6px 15px; padding:8px 12px; border-top:1px solid #374044; background:#181e21; font:12px/1.45 "IBM Plex Mono",monospace; color:#c9d1d2 }
+.eotw-map-key span { display:inline-flex; align-items:center; gap:6px }
+.eotw-map-key i { display:inline-block; width:7px; height:7px; flex:none }
+.eotw-map-key .mark-weather { transform:rotate(45deg); width:6px; height:6px }
+.eotw-map-key .mark-seismic { border-radius:50% }
+.eotw-map-key .mark-natural { clip-path:polygon(50% 0,100% 100%,0 100%) }
+.eotw-map-key .mark-high { width:9px; height:9px; border:1px solid #ff725f; outline:1px solid #ff725f; outline-offset:1.5px; border-radius:50% }
+.eotw-scan-sweep { position:absolute; inset:0; z-index:1; background:linear-gradient(100deg,transparent 42%,#85c2b214 48%,#abd0c526 50%,transparent 51%); pointer-events:none; animation:eotw-scan-received 1.35s ease-out both }
+@keyframes eotw-scan-received { from{transform:translateX(-100%)} to{transform:translateX(105%);opacity:0} }
+.eotw-alert-ring { transform-origin:center; transform-box:fill-box; animation:eotw-priority 2s ease-out 2 }
+@keyframes eotw-priority { 0%,100%{opacity:.73} 50%{opacity:.28} }
+@media (prefers-reduced-motion: reduce){.eotw-scan-sweep{display:none}.eotw-alert-ring{animation:none}}
+@media(max-width:600px){.eotw-map-key{gap:5px 12px}.eotw-controls button{width:36px;height:36px}}

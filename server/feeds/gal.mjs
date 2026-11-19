@@ -4,7 +4,7 @@ import { link, plain } from "./model.mjs";
 export const galUrl = "https://data.gdeltproject.org/gdeltv3/gal/feed.rss";
 export const galBytes = 80 * 1024;
 const parser = new XMLParser({ ignoreAttributes: true, parseTagValue: false, trimValues: true });
-const topics = /\b(earthquakes?|floods?|wildfires?|storms?|hurricanes?|typhoons?|evacuat\w*|emergenc\w*|ceasefire|conflicts?|sanctions|security|elections?|whistleblowers?|uaps?|ufos?|qanon|conspiracy)\b/i;
+const topics = /\b(earthquakes?|floods?|wildfires?|storms?|hurricanes?|typhoons?|evacuat\w*|emergenc\w*|ceasefire|conflicts?|sanctions|security|cyberattacks?|ransomware|outages?|bank failure|sovereign default|elections?|whistleblowers?|uaps?|ufos?|qanon|conspiracy)\b/i;
 
 export function galArticles(prefix) {
   if (!prefix.includes("GDELT Article List RSS Feed") || /<!DOCTYPE|<!ENTITY/i.test(prefix)) {

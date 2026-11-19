@@ -128,10 +128,14 @@ export function record(raw, now = Date.now()) {
     publishedAt,
     updatedAt,
     category,
+    ...(raw.origin ? { origin: raw.origin } : {}),
+    ...(raw.alertArea && raw.source === "National Weather Service" ? { alertArea: raw.alertArea } : {}),
     ...(raw.editorialType ? {
       editorialType: raw.editorialType,
       byline: raw.byline,
       supersedes: raw.supersedes,
+      ...(raw.evidence?.length ? { evidence: raw.evidence } : {}),
+      ...(raw.counterevidence?.length ? { counterevidence: raw.counterevidence } : {}),
     } : {}),
     scope:
       raw.scope === "us" ||
@@ -230,7 +234,8 @@ export function combine(old, next, at) {
 export function scopeFor(event, location = "Maui") {
   const place = fold(location).split(",")[0].trim();
   const text = fold([event.title, event.location].join(" "));
-  if (place.length > 1 && text.includes(place)) return "local";
+  const escaped = place.replace(/[.*+?^$()|[\]\\]/g, "\\  if (place.length > 1 && text.includes(place)) return "local";");
+  if (place.length > 1 && new RegExp("(^|[^\\p{L}\\p{N}])" + escaped + "(?=$|[^\\p{L}\\p{N}])", "u").test(text)) return "local";
   if (
     place === "maui" &&
     /\b(lahaina|kahului|wailuku|kihei|kula|molokai|lanai)\b/.test(text)

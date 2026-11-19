@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { emptyFeed, type Feed, type Preferences } from './types'
+import { emptyFeed, type Feed, type Preferences, type Situation } from './types'
 
 const defaults: Preferences = {saved: [], topics: [], location: 'Maui', notifications: false, history: []}
 function readLocal<T>(key: string, fallback: T): T {
@@ -143,14 +143,14 @@ type Cache = {query: string, data: Feed}
 const recent = new Map<string, Feed>()
 function recall(query: string) {
   if (recent.has(query)) return recent.get(query)!
-  const cache = readLocal<Cache | null>('eotw.briefing.v1',null)
-  const cached=cache?.data
-  if(cache?.query===query && Array.isArray(cached?.events) && Array.isArray(cached.health))return cached
-  const id=new URLSearchParams(query).get('id')
+  const params = new URLSearchParams(query)
+  const caches = [readLocal<Cache|null>('eotw.signals.v1',null),readLocal<Cache|null>('eotw.briefing.v1',null)]
+    .filter((item): item is Cache => !!item && Array.isArray(item.data?.events) && Array.isArray(item.data.health))
+  const exact = caches.find(item=>item.query===query)
+  if(exact)return exact.data
+  const id=params.get('id')
   if(id){
-    // A reader following a saved link offline may already have this public record in the briefing.
-    const feeds=[...recent.values(),...(cached && Array.isArray(cached.events) && Array.isArray(cached.health)?[cached]:[])]
-    for(const feed of feeds){
+    for(const feed of [...recent.values(),...caches.map(item=>item.data)]){
       const event=feed.events.find(e=>e.id===id)
       if(event)return {...feed,events:[event],nextCursor:null}
     }
@@ -188,7 +188,8 @@ export function useFeed(params: Record<string,string>, enabled = true) {
         recent.set(query, next)
         if (recent.size > 40) recent.delete(recent.keys().next().value!)
         const keys = new URLSearchParams(query)
-        if (keys.get('view') === 'briefing' && !keys.has('id') && !keys.get('q') && keys.get('scope') === 'all') cacheLocal('eotw.briefing.v1',{query,data:next})
+        const view=keys.get('view')
+        if ((view==='briefing'||view==='signals') && !keys.has('id') && !keys.get('q') && keys.get('scope') === 'all') cacheLocal('eotw.'+view+'.v1',{query,data:next})
         setSnapshot({key:query,data:next,busy:false,error:'',more:false})
       } catch {
         if (active && controller === ac) setSnapshot(s=>({...s,busy:false,more:false,error:'The feed could not be reached.'}))
@@ -206,4 +207,34 @@ export function useFeed(params: Record<string,string>, enabled = true) {
     retry: () => setVersion(v=>v+1),
     loadMore: () => { if (current.data.nextCursor) setPage({query,cursor:current.data.nextCursor}) }
   }
+}
+
+export function useSituation(location: string) {
+  const [result,setResult]=useState<{location:string; report:Situation|null; loading:boolean; error:boolean}>({location,report:null,loading:true,error:false})
+  useEffect(()=>{
+    let active=true
+    let controller:AbortController | undefined
+    const load=async()=>{
+      if(document.hidden)return
+      controller?.abort()
+      const ac=new AbortController()
+      controller=ac
+      const timer=setTimeout(()=>ac.abort(),18000)
+      try{
+        const response=await fetch('/api/situation?'+new URLSearchParams({location}),{signal:ac.signal})
+        if(!response.ok)throw Error('Situation unavailable')
+        const data:Situation=await response.json()
+        if(!Array.isArray(data.citations)||!Array.isArray(data.sections?.whatHappened)||!Array.isArray(data.sections?.whyItMatters)||!Array.isArray(data.sections?.whatToMonitor))throw Error('Invalid situation')
+        if(active && ac===controller)setResult({location,report:data,loading:false,error:false})
+      }catch{
+        if(active && ac===controller)setResult(old=>({location,report:old.location===location?old.report:null,loading:false,error:true}))
+      }finally{clearTimeout(timer)}
+    }
+    void load()
+    const timer=setInterval(load,45000)
+    window.addEventListener('online',load)
+    document.addEventListener('visibilitychange',load)
+    return ()=>{active=false;controller?.abort();clearInterval(timer);window.removeEventListener('online',load);document.removeEventListener('visibilitychange',load)}
+  },[location])
+  return result.location===location?result:{location,report:null,loading:true,error:false}
 }

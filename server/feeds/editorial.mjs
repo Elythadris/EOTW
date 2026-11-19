@@ -28,6 +28,11 @@ function reference(entry, owner) {
   if (!url.startsWith("https://") || url === owner) throw new Error("Invalid editorial citation");
   return { name: requiredText(entry.name, 90), url };
 }
+function findings(items, owner) {
+  if (items === undefined) return [];
+  if (!Array.isArray(items) || items.length > 4) throw new Error("Expected up to four attributed findings");
+  return items.map(item => ({ ...reference(item, owner), finding: requiredText(item.finding, 420) }));
+}
 export function editorialRows(text, now = Date.now()) {
   const rows = JSON.parse(text);
   if (!Array.isArray(rows) || rows.length > 100) throw new Error("Expected at most 100 editorial records");
@@ -44,6 +49,10 @@ export function editorialRows(text, now = Date.now()) {
     const url = root + row.slug + ".md";
     if (!Array.isArray(row.sources) || row.sources.length < 1 || row.sources.length > 9) throw new Error("Editorial evidence is required");
     const sources = row.sources.map((entry) => reference(entry, url));
+    const evidence = findings(row.evidence, url);
+    const counterevidence = findings(row.counterevidence, url);
+    const cited = new Set(sources.map(s => s.url));
+    if ([...evidence, ...counterevidence].some(s => !cited.has(s.url))) throw new Error("Every finding must cite a listed source");
     const supersedes = row.supersedes ? reference(row.supersedes, url) : null;
     if (row.type === "correction" && !supersedes) throw new Error("A correction must identify the superseded record");
     if (row.scope && !["us", "global"].includes(row.scope)) throw new Error("Invalid editorial scope");
@@ -63,6 +72,8 @@ export function editorialRows(text, now = Date.now()) {
       scope: row.scope || "global",
       location: row.location ? requiredText(row.location, 100) : "",
       supersedes,
+      evidence,
+      counterevidence,
       sources: supersedes ? [...sources, { name: "Superseded · " + supersedes.name, url: supersedes.url }] : sources,
       originLabel: editorialTypes[row.type] + " published by EOTW.",
     };

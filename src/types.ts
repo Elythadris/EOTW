@@ -11,7 +11,50 @@ export type Page =
   | "story";
 export type EditorialType = "original" | "investigation" | "prediction" | "correction";
 
+export type SignalLevel = "watch" | "elevated" | "high";
+export interface SignalAssessment {
+  score: number;
+  level: SignalLevel;
+  category: string;
+  why: string;
+  monitor: string;
+  reasons: string[];
+  changeKey: string;
+  incidentKey?: string;
+  axes?: Record<string, number>;
+}
+export interface Intelligence {
+  scanned: number;
+  alerts: number;
+  lastScan: string | null;
+  regions: {
+    scope: Exclude<Scope, "all">;
+    level: SignalLevel | "quiet" | "unknown";
+    reason: string;
+    eventIds: string[];
+  }[];
+  escalations: { eventId: string; at: string; description: string }[];
+  anomalies: { label: string; description: string; eventIds: string[]; confidence: string }[];
+  baselineNote: string;
+  hotIds: string[];
+  related: { eventIds: string[]; reason: string }[];
+}
+export interface BriefPoint { text: string; citationIds: string[] }
+export interface Situation {
+  location: string;
+  mode: "sources" | "ai";
+  generatedAt: string | null;
+  updatedAt: string | null;
+  stale: boolean;
+  notice: string;
+  sections: { whatHappened: BriefPoint[]; whyItMatters: BriefPoint[]; whatToMonitor: BriefPoint[] };
+  citations: (Citation & { eventId: string; source: string; publishedAt: string; scope: string })[];
+}
 export interface IntelEvent {
+  intelligence?: SignalAssessment;
+  alertArea?: { type: 'MultiPolygon'; coordinates: number[][][][] };
+  evidence?: { name: string; url: string; finding: string }[];
+  counterevidence?: { name: string; url: string; finding: string }[];
   editorialType?: EditorialType;
   supersedes?: { name: string; url: string };
   id: string;
@@ -50,6 +93,7 @@ export interface SourceHealth {
   intervalMinutes?: number;
 }
 export interface Feed {
+  intelligence?: Intelligence;
   events: IntelEvent[];
   health: SourceHealth[];
   updatedAt: string | null;

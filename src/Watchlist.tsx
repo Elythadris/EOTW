@@ -303,8 +303,7 @@ export default function Watchlist({
             Significant alerts
           </h2>
           <p>
-            Notify me about newly received high-severity reports matching my
-            location, saved stories, or followed topics while EOTW is open.
+            Notify me about new elevated or high-priority signals and material escalations affecting my location, saved stories, or followed topics while EOTW is open.
           </p>
           <button
             className={"secondary " + (prefs.notifications ? "switch-on" : "")}

@@ -1,15 +1,15 @@
 # EOTW · End of the World Watch
 
-[Open the command center](https://eotw-watch.netlify.app) to read a local briefing, check where an incident was reported, and follow the original sources. The default edition is Maui. Change the location in the watchlist to personalize the feed.
+[Open the command center](https://eotw-watch.netlify.app) to see which public warnings and incidents qualify for attention, what changed, and which sources support each assessment. The default edition is Maui. Change the location in the watchlist to personalize the feed.
 
 ## Using EOTW
 
-- **Command Center** brings together local, U.S. and global developments, coverage status and the event map.
-- **Live Map** opens source reports from interactive geographic markers. Zoom with the controls and pan by dragging or using the arrow keys.
-- **Trending 24H** ranks recent updates by recency, reported significance, growth in independent coverage and measured engagement where a provider supplies it.
-- **Rabbit Hole** tracks public records, fact checks and reported claims. Each story carries a verification label and a link to the evidence.
+- **Command Center** opens with a source-linked situation briefing, collection health, scan time and regional threat levels. Open a regional signal to see the reasons for its score and what to monitor next. Escalation compares changes to the same incident. Anomaly detection compares observed activity with previously collected samples and shows when the baseline is still forming.
+- **Live Map** groups spatially close reports as you zoom. Explore categorized incidents, published NWS warning areas when supplied, and individual report timelines. Coverage depends on the coordinates supplied by each source.
+- **Hot 24** shows qualifying developments with measured changes during the past day.
+- **Rabbit Hole** separates public records, reported claims and speculation. Open a claim to inspect verification status, source credibility and any documented supporting or contrary evidence.
 - **Investigate** searches indexed reporting and its timelines. **Ask EOTW** retrieves relevant records and answers with citations. When model generation is unavailable, it returns labeled source matches.
-- **Watchlist** saves reports, monitors topics and controls location and notifications. Anonymous browsing works immediately. Accounts can sync across devices when Netlify Identity is enabled.
+- **Watchlist** saves reports, monitors topics and controls location and notifications. Opt-in alerts while the app is open announce qualifying new or worsening incidents that match your preferences. Anonymous browsing works immediately. Accounts can sync across devices when Netlify Identity is enabled.
 - **Archive** searches the historical records collected by this installation. Permanent story URLs have server-rendered share metadata and a non-JavaScript source link. An automatically generated sitemap includes archived reporting.
 
 ## Run and deploy
@@ -34,7 +34,7 @@ Editors can add sourced original reporting, investigations, predictions and corr
 
 ## Data and operations
 
-The collector wakes every five minutes UTC on published production deploys. Each adapter enforces its own check interval, validators, retry schedule and quotas. The frontend polls the stored briefing. Reader requests never trigger mass upstream collection. A successful upstream check and a story's publication time measure different things. The UI exposes both.
+The collector wakes every five minutes UTC on published production deploys. Each adapter enforces its own check interval, validators, retry schedule and quotas. The visible dashboard checks for updated signals and the situation briefing every 45 seconds. A separate scheduled function maintains a cited AI edition for Maui under the shared daily quota. When the evidence changes, readers receive a briefing derived from the current sources while the next AI edition is pending. Reader requests never trigger mass upstream collection. A successful upstream check and a story's publication time measure different things. The UI exposes both.
 
 Normalized records and source status are stored in Netlify Blobs. The schema initializer lives in `server/feeds/migrations/`; the collector writes date-partitioned history before conditionally advancing the current snapshot. The site archives changes to indexed reports and preserves publisher attribution. It does not synthesize missing reports or republish full third-party articles. Reader profiles and model usage permits use separate stores. Private credentials belong in Netlify's Functions environment.
 
