@@ -349,6 +349,7 @@ export function SituationAtlas({
   const quiet = level === "quiet";
   const unknown = level === "unknown";
   const outsideWarning = wider ? weatherHeadline(wider) : null;
+  const affectedPlaces = outsideWarning && wider?.location ? wider.location.split("; ") : [];
   const headline = unknown
     ? stale
       ? "Assessment out of date"
@@ -427,7 +428,12 @@ export function SituationAtlas({
                 <h4>
                   <StoryLink event={wider} open={open}>{outsideWarning ? outsideWarning.name : wider.title}</StoryLink>
                 </h4>
-                {outsideWarning && wider.location && <p className="atlas-affected">{wider.location.split("; ").join(" · ")}</p>}
+                {affectedPlaces.length > 3 ? (
+                  <details className="atlas-affected">
+                    <summary>{affectedPlaces[0]} and {affectedPlaces.length - 1} more areas</summary>
+                    <p>{affectedPlaces.join(" · ")}</p>
+                  </details>
+                ) : affectedPlaces.length > 0 && <p className="atlas-affected">{affectedPlaces.join(" · ")}</p>}
                 <div className="atlas-publisher">
                   <span>{wider.source}</span>
                   <time

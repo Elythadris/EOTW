@@ -545,3 +545,19 @@ test("a new scan updates the command center after paging through signals", async
     priorities.getByRole("link", { name: change.title, exact: true }),
   ).toBeVisible();
 });
+
+test("the location picker shows the matching relief and updates the chosen area", async ({ page }) => {
+  await mockAPI(page, []);
+  await page.goto("/");
+  const changeFocus = page.locator(".location-control");
+  await changeFocus.click();
+  const picker = page.getByRole("dialog", { name: "Set local focus" });
+  await expect(picker.getByRole("link", { name: "USGS 3DEP" })).toBeVisible();
+  await expect(picker.locator("svg.maui-relief image")).toHaveAttribute("href", /maui-hillshade/);
+  await picker.getByRole("textbox", { name: "City, island, or region" }).fill("Seattle");
+  await picker.getByRole("button", { name: "Set location" }).click();
+  await expect(changeFocus).toContainText("Seattle");
+  await changeFocus.click();
+  await expect(picker.getByRole("textbox", { name: "City, island, or region" })).toHaveValue("Seattle");
+  await expect(picker.locator("svg.maui-relief")).toHaveCount(0);
+});

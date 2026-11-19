@@ -166,3 +166,24 @@ test("an unmapped local report stays unplotted, and reduced motion suppresses a 
   await expect(sweep).toHaveCount(1);
   await expect(sweep).toBeHidden();
 });
+
+test("a quiet local assessment leads to the local archive and keeps wider warning details readable", async ({ page }) => {
+  const warning = {
+    ...domestic, id: "atlas-weather-notice", source: "National Weather Service",
+    title: "Flood Warning issued January 10 at 8:00AM PST until January 10 at 3:00PM PST by NWS Portland OR",
+  };
+  await interceptAtlas(page, [warning]);
+  await page.goto("/");
+  const assessment = page.getByRole("article", { name: "Maui assessment" });
+  await expect(assessment.getByText("No local priority reports", { exact: true })).toBeVisible();
+  const archive = assessment.getByRole("link", { name: "Browse local reports" });
+  await expect(archive).toHaveAttribute("href", "/archive?scope=local");
+  await archive.click();
+  await expect(page).toHaveURL(/\/archive\?scope=local$/);
+  await page.goBack();
+  await assessment.getByRole("link", { name: "Flood Warning", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Flood Warning", level: 1, exact: true })).toBeVisible();
+  await expect(page.getByText("Scheduled end January 10 at 3:00PM PST")).toBeVisible();
+  await page.getByText("Publisher’s full headline", { exact: true }).click();
+  await expect(page.getByText(warning.title, { exact: true })).toBeVisible();
+});

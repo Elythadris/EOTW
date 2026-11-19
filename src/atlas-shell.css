@@ -233,3 +233,6 @@ main { background: radial-gradient(ellipse 80% 40rem at 75% -5rem,#1a3240 0,tran
 .sv-original-title { margin: 0 0 12px; border-bottom: 1px solid #344a58; padding-bottom: 9px; }
 .sv-original-title summary { color: #a9d0c6; width: fit-content; padding: 4px 0; cursor: pointer; font-size: .8rem; }
 .sv-original-title p { padding-top: 6px; color: #c8d9df; font-size: .9rem; line-height: 1.5; }
+
+.atlas-affected summary { width: fit-content; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+.atlas-affected[open] p { padding-top: 4px; }
