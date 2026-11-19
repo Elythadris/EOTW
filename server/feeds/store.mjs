@@ -61,6 +61,13 @@ export async function collect({store=repository(),now=Date.now(),defs=definition
   if (!(await lease(store,now))) return {busy:true};
   const previous=await store.getWithMetadata(SNAPSHOT_KEY,{type:"json"});
   const state=checkSchema(previous?.data);
+  // A pre-fallback snapshot has a single backoff for both feeds. Preserve the
+  // original DOC deadline while allowing the independent Article List to run.
+  const gdelt = state.providers.gdelt;
+  if (gdelt?.status === "error" && gdelt.nextDue > now && !Object.hasOwn(gdelt, "primaryRetryAfter")) {
+    gdelt.primaryRetryAfter = gdelt.nextDue;
+    gdelt.nextDue = now;
+  }
   const due=defs.filter(def=>!def.disabled && (!state.providers[def.id] || (state.providers[def.id].nextDue || 0)<=now));
   const result=await Promise.allSettled(due.map(def=>load(def,sourceState(state,def.id),{now})));
   const pool=new Map(state.events.map(e=>[e.id,e]));
@@ -81,6 +88,7 @@ export async function collect({store=repository(),now=Date.now(),defs=definition
     if (attempt.status === "rejected") {
       const error=attempt.reason;
       entry.status="error";
+      if (def.id === "gdelt") entry.primaryRetryAfter = Math.max(before.primaryRetryAfter || 0, error?.retryAfter || 0);
       entry.failures=Math.min(6,(before.failures || 0)+1);
       entry.detail=error?.status ? "Upstream HTTP "+error.status : "Feed could not be retrieved or validated.";
       entry.nextDue=Math.max(now+Math.min(360,def.minutes*2**(entry.failures-1))*60000,error?.retryAfter || 0);

@@ -284,3 +284,25 @@ test("endpoint validates methods, query bounds, cache variation and storage fail
   await store.setJSON(SNAPSHOT_KEY, { version: 999 });
   await assert.rejects(searchEvents({}, { store, defs: [] }), /schema/);
 });
+
+test("existing DOC backoff permits one independent fallback check after upgrade", async () => {
+  const store = memory();
+  const due = clock + 30 * 60_000;
+  await store.setJSON(SNAPSHOT_KEY, {
+    version: 1, events: [], days: [], updatedAt: null,
+    providers: { gdelt: { status: "error", ids: [], nextDue: due, lastSuccess: null } },
+  });
+  let calls = 0;
+  const result = await collect({
+    store, now: clock, defs: [{ id: "gdelt", name: "GDELT", minutes: 30 }],
+    load: async (_definition, state) => {
+      calls++;
+      assert.equal(state.primaryRetryAfter, due);
+      return { events: [], primaryRetryAfter: due, detail: "Article List fallback" };
+    },
+  });
+  assert.equal(calls, 1);
+  assert.equal(result.succeeded, 1);
+  const state = await store.get(SNAPSHOT_KEY);
+  assert.equal(state.providers.gdelt.primaryRetryAfter, due);
+});
