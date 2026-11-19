@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
+import { fetchPreferences } from './data';
 import type { AuthProvider, CallbackResult, Settings } from '@netlify/identity';
 
 type View = 'login' | 'signup' | 'recover' | 'invite' | 'password';
@@ -46,7 +47,7 @@ export default function Account() {
         }
         if (result) { refreshAccount(); return; }
       }
-      const response = await fetch('/api/preferences', { cache: 'no-store' });
+      const response = await fetchPreferences();
       if (!response.ok && response.status !== 401) return;
       const current: AccountState = response.status === 401 ? { enabled: true, signedIn: false } : (await response.json()).account;
       if (!live || !current) return;

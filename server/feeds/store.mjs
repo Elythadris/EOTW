@@ -137,7 +137,7 @@ export function parseFeedParams(url) {
   const query={view:p.get("view") || "briefing",scope:p.get("scope") || "all",q:(p.get("q") || "").trim(),
     location:(p.get("location") || "Maui").trim(),id:p.get("id") || "",cursor:p.get("cursor") || "",limit:Number(p.get("limit") || 100)};
   if (!["briefing","trending","rabbit","archive"].includes(query.view) || !["all","local","us","global","conspiracy"].includes(query.scope)
-    || query.q.length>220 || query.location.length>90 || (query.id && !validId(query.id)) || !Number.isInteger(query.limit)
+    || query.q.length>220 || query.location.length>100 || (query.id && !validId(query.id)) || !Number.isInteger(query.limit)
     || query.limit<1 || query.limit>200 || (query.cursor && !(/^\d{1,6}$/.test(query.cursor) || archivePointer.test(query.cursor)))) throw new Error("Invalid feed parameters.");
   return query;
 }

@@ -58,10 +58,12 @@ function installReader(version, entries, assets) {
     if(!/^\/assets\/[\w.-]+$/.test(url.pathname))return
     event.respondWith((async()=>{
       const cache=await caches.open(name)
-      const fromCurrent=await cache.match(event.request)
+      // Bytes were verified against the release manifest. Static hashed files do not vary by request Origin.
+      const immutable={ignoreVary:true}
+      const fromCurrent=await cache.match(url.href,immutable)
       if(fromCurrent)return fromCurrent
       const previous=(await caches.keys()).filter(k=>k.startsWith(prefix)&&k!==name).at(-1)
-      if(previous){const old=await (await caches.open(previous)).match(event.request);if(old)return old}
+      if(previous){const old=await (await caches.open(previous)).match(url.href,immutable);if(old)return old}
       return fetch(event.request)
     })())
   })

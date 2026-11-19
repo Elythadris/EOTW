@@ -29,7 +29,10 @@ function combineEdits(base: Preferences, local: Preferences, remote: Preferences
   if (historyChanged) {
     let common = Math.min(base.history.length,local.history.length)
     while (common && JSON.stringify(base.history.slice(-common)) !== JSON.stringify(local.history.slice(0,common))) common--
-    history = [...remote.history,...local.history.slice(common)].slice(-24)
+    const added=local.history.slice(common)
+    let overlap=Math.min(added.length,remote.history.length)
+    while(overlap && JSON.stringify(remote.history.slice(-overlap))!==JSON.stringify(added.slice(0,overlap)))overlap--
+    history = [...remote.history,...added.slice(overlap)].slice(-24)
   }
   return {
     saved:mergeList(base.saved,local.saved,remote.saved,200),
@@ -38,6 +41,13 @@ function combineEdits(base: Preferences, local: Preferences, remote: Preferences
     notifications:base.notifications===local.notifications?remote.notifications:local.notifications,
     history
   }
+}
+let preferencesRead:Promise<Response>|null=null
+// Initial readers on the same screen must share the GET that establishes the guest cookie.
+export async function fetchPreferences(): Promise<Response> {
+  preferencesRead ??= fetch('/api/preferences',{cache:'no-store',signal:AbortSignal.timeout(10000)})
+    .finally(()=>{preferencesRead=null})
+  return (await preferencesRead).clone()
 }
 export function usePreferences() {
   const [prefs, setPrefs] = useState(() => validPrefs(readLocal(prefsKey, defaults)))
@@ -51,7 +61,7 @@ export function usePreferences() {
   const baseline = useRef(prefs)
   const unsynced = useRef(false)
   const readRemote = useCallback(async () => {
-    const r = await fetch('/api/preferences',{cache:'no-store',signal:AbortSignal.timeout(10000)})
+    const r = await fetchPreferences()
     if(!r.ok)throw Error('Preferences unavailable')
     const raw = await r.json()
     if(!Array.isArray(raw.saved)||!Array.isArray(raw.history))throw Error('Invalid preferences')
@@ -64,13 +74,14 @@ export function usePreferences() {
   },[])
   const persist = useCallback((next: Preferences) => {
     const seq = ++serial.current
+    const requestedBase=baseline.current
     unsynced.current=true
     setSync('syncing')
     if(!signedIn.current){cacheLocal(prefsKey,next);cacheLocal(prefsKey+'.pending',true)}
     queue.current = queue.current.then(async () => {
       if(seq!==serial.current)return
       try {
-        let desired=next
+        let desired=requestedBase===baseline.current?next:combineEdits(requestedBase,next,baseline.current)
         if(!ready.current){
           const remote=await readRemote()
           desired=combineEdits(baseline.current,next,remote)
@@ -133,7 +144,18 @@ const recent = new Map<string, Feed>()
 function recall(query: string) {
   if (recent.has(query)) return recent.get(query)!
   const cache = readLocal<Cache | null>('eotw.briefing.v1',null)
-  return cache?.query === query && Array.isArray(cache.data?.events) ? cache.data : emptyFeed
+  const cached=cache?.data
+  if(cache?.query===query && Array.isArray(cached?.events) && Array.isArray(cached.health))return cached
+  const id=new URLSearchParams(query).get('id')
+  if(id){
+    // A reader following a saved link offline may already have this public record in the briefing.
+    const feeds=[...recent.values(),...(cached && Array.isArray(cached.events) && Array.isArray(cached.health)?[cached]:[])]
+    for(const feed of feeds){
+      const event=feed.events.find(e=>e.id===id)
+      if(event)return {...feed,events:[event],nextCursor:null}
+    }
+  }
+  return emptyFeed
 }
 function merge(first: Feed, next: Feed): Feed {
   return {...next, events: [...new Map([...first.events,...next.events].map(e=>[e.id,e])).values()]}
