@@ -173,3 +173,11 @@ test("Maui uses the official SAME county code without assigning unspecified suba
   const unknown=signalDesk([],{lastSignalScan:iso(now)},["maui-mema","nws-hi","hiema"].map(ok),now,"Kahului");
   assert.equal(unknown.intelligence.regions.find(r=>r.scope==="local").level,"unknown");
 });
+
+test("a tracked narrative mentioning an outage cannot promote the claim to a threat",()=>{
+  const narrative=sample({title:"QAnon users discuss widespread power outage",status:"developing"});
+  const bulletin=sample({title:"Widespread power outage affects Maui County",url:"https://www.mauicounty.gov/CivicAlerts.aspx?AID=1",source:"County of Maui",status:"confirmed"});
+  assert.equal(narrative.topicClaim,true);
+  assert.equal(annotate(narrative,now,"Maui"),null);
+  assert.deepEqual(desk([narrative,bulletin]).events.map(e=>e.id),[bulletin.id]);
+});

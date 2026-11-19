@@ -68,7 +68,7 @@ function template(category,key,impact,severity,urgency,credibility,why,monitor) 
   return {category,key,impact,severity,urgency,credibility,why,monitor};
 }
 function qualify(e,now,scope) {
-  if (e.transient || e.source === "Reddit" || e.status === "speculation" || e.editorialType === "prediction" ||
+  if (e.topicClaim === true || e.transient || e.source === "Reddit" || e.status === "speculation" || e.editorialType === "prediction" ||
       millis(e.updatedAt)>now+5*MINUTE || (e.expiresAt && millis(e.expiresAt)<=now)) return null;
   const age = now - millis(e.updatedAt);
   const origin = e.origin || {};
