@@ -234,7 +234,7 @@ export function combine(old, next, at) {
 export function scopeFor(event, location = "Maui") {
   const place = fold(location).split(",")[0].trim();
   const text = fold([event.title, event.location].join(" "));
-  const escaped = place.replace(/[.*+?^$()|[\]\\]/g, "\\  if (place.length > 1 && text.includes(place)) return "local";");
+  const escaped = place.replace(/[.*+?^$()|[\]\\]/g, "\\$&");
   if (place.length > 1 && new RegExp("(^|[^\\p{L}\\p{N}])" + escaped + "(?=$|[^\\p{L}\\p{N}])", "u").test(text)) return "local";
   if (
     place === "maui" &&
