@@ -15,6 +15,7 @@ import { OpsPanel, StoryLink } from "./Operations";
 import {
   dateTime,
   relative,
+  weatherHeadline,
   type IntelEvent,
   type Intelligence,
   type Scope,
@@ -347,17 +348,18 @@ export function SituationAtlas({
   const motion = useScanMotion(last, where, stale);
   const quiet = level === "quiet";
   const unknown = level === "unknown";
+  const outsideWarning = wider ? weatherHeadline(wider) : null;
   const headline = unknown
     ? stale
       ? "Assessment out of date"
       : "Awaiting an assessment"
     : quiet
-      ? "No qualifying signals"
+      ? "No " + (area === "local" ? "local " : "") + "priority reports"
       : lead?.intelligence?.why || lead?.title || "Priority activity detected";
   const supporting = unknown
     ? region?.reason || "Waiting for a successful scan."
     : quiet
-      ? "The latest scan found no reports meeting the significance criteria for this area."
+      ? "No report for " + place + " reached the Watch level in the latest scan."
       : lead?.intelligence?.monitor || region?.reason;
   return (
     <OpsPanel
@@ -404,6 +406,7 @@ export function SituationAtlas({
           </div>
           <p className="atlas-takeaway">{headline}</p>
           {supporting && <p className="atlas-support">{supporting}</p>}
+          {quiet && <p className="atlas-source-line"><a href={"/archive?scope=" + area}>Browse {area === "local" ? "local" : "regional"} reports <ArrowUpRight size={13} /></a></p>}
           {lead && !unknown && !quiet && (
             <p className="atlas-source-line">
               <StoryLink event={lead} open={open}>
@@ -422,8 +425,9 @@ export function SituationAtlas({
                     : "Wider signal"} · {names[wider.scope]}
                 </span>
                 <h4>
-                  <StoryLink event={wider} open={open} />
+                  <StoryLink event={wider} open={open}>{outsideWarning ? outsideWarning.name : wider.title}</StoryLink>
                 </h4>
+                {outsideWarning && wider.location && <p className="atlas-affected">{wider.location.split("; ").join(" · ")}</p>}
                 <div className="atlas-publisher">
                   <span>{wider.source}</span>
                   <time

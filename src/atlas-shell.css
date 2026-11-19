@@ -226,3 +226,10 @@ main { background: radial-gradient(ellipse 80% 40rem at 75% -5rem,#1a3240 0,tran
   html { scroll-behavior: auto; }
   .modal[open], .edition-select .maui-relief { animation: none; transition: none; }
 }
+
+.atlas-affected { margin: 0 0 5px; font-size: .82rem; line-height: 1.45; color: #c5d7da; }
+.sv-warning-times { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 4px 16px; }
+.sv-warning-times span { color: #c8d6d8; font: .79rem/1.55 var(--body); }
+.sv-original-title { margin: 0 0 12px; border-bottom: 1px solid #344a58; padding-bottom: 9px; }
+.sv-original-title summary { color: #a9d0c6; width: fit-content; padding: 4px 0; cursor: pointer; font-size: .8rem; }
+.sv-original-title p { padding-top: 6px; color: #c8d9df; font-size: .9rem; line-height: 1.5; }

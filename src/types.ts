@@ -204,3 +204,11 @@ export function staleScan(timestamp: string | null | undefined) {
   const time = Date.parse(timestamp || "");
   return !Number.isFinite(time) || Date.now() - time > 20 * 60_000;
 }
+
+/** Split the issued-at boilerplate only when the publisher used its standard NWS headline. */
+export function weatherHeadline(event: IntelEvent) {
+  if (event.source !== "National Weather Service") return null;
+  const match = /^(.+?) issued ([A-Z][a-z]+ \d{1,2} at .+?)(?: until (.+?))? by NWS (.+)$/i.exec(event.title);
+  if (!match) return null;
+  return { name: match[1], issued: match[2], end: match[3], office: match[4] };
+}

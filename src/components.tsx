@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import {
   dateTime,
+  weatherHeadline,
   relative,
   sourceURL,
   type IntelEvent,
@@ -472,15 +473,19 @@ export function ArticleDetail({
     seen.add(href);
     return true;
   });
+  const warning = weatherHeadline(e);
   const monitor = e.intelligence?.monitor;
   const corrected = e.editorialType === "correction" && e.supersedes && sourceURL(e.supersedes.url);
   return <article className={"detail-page sv-dossier sv-tone-" + (e.intelligence?.level || "neutral")}>
     <header className="sv-dossier-head">
       <div className="sv-report-kicker"><span>{e.category}</span><Status value={e.status}/></div>
-      <h1>{e.title}</h1>
+      <h1>{warning?.name || e.title}</h1>
       <div className="sv-attribution"><span><FileText size={15} aria-hidden="true"/>{e.source}</span>
-        <time dateTime={e.publishedAt}><Clock3 size={15} aria-hidden="true"/>{dateTime(e.publishedAt)}</time>
+        {!warning && <time dateTime={e.publishedAt}><Clock3 size={15} aria-hidden="true"/>{dateTime(e.publishedAt)}</time>}
       </div>
+      {warning && <div className="sv-warning-times">
+        <span>Issued {warning.issued}</span>{warning.end && <span>Scheduled end {warning.end}</span>}
+      </div>}
       <div className="sv-facts">
         <div><span><MapPin size={15} aria-hidden="true"/>Where</span><strong>{e.location || "Location unspecified"}</strong></div>
         <div><span><Activity size={15} aria-hidden="true"/>Reported severity</span><strong className={"sv-severity sv-severity-" + e.severity}>{e.severity}</strong></div>
@@ -497,6 +502,7 @@ export function ArticleDetail({
       <div className="sv-column">
         <section className="sv-panel">
           <header className="sv-panel-header"><h2><FileText size={18} aria-hidden="true"/>Report summary</h2></header>
+          {warning && <details className="sv-original-title"><summary>Publisher’s full headline</summary><p>{e.title}</p></details>}
           <p className="sv-summary">{e.summary || "The publisher provides the full report at the source link."}</p>
           {e.status === "speculation" && <p className="sv-caution">The originating source reports an allegation. Independent verification is unresolved.</p>}
           {e.intelligence?.why && <div className="sv-matters"><h3>Why it matters</h3><p>{e.intelligence.why}</p></div>}
