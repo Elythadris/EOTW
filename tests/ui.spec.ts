@@ -50,6 +50,7 @@ async function mockAPI(
   pageSize = 100,
   asOf?: string,
 ) {
+  const scan = asOf || new Date().toISOString();
   let prefs: Preferences = {
     saved: [],
     topics: [],
@@ -76,7 +77,6 @@ async function mockAPI(
         (!p.get("scope") || ["all", e.scope].includes(p.get("scope")!)),
     );
     const start = Number(p.get("cursor") || 0);
-    const scan = asOf || new Date().toISOString();
     const sample = results[0];
     await r.fulfill({
       json: {
@@ -120,7 +120,7 @@ async function mockAPI(
           : {}),
         nextCursor:
           start + pageSize < results.length ? String(start + pageSize) : null,
-        updatedAt: asOf || new Date().toISOString(),
+        updatedAt: scan,
         health: [
           {
             id: "fixture",
@@ -137,8 +137,8 @@ async function mockAPI(
       json: {
         location: new URL(r.request().url()).searchParams.get("location"),
         mode: "sources",
-        generatedAt: asOf || new Date().toISOString(),
-        updatedAt: asOf || new Date().toISOString(),
+        generatedAt: scan,
+        updatedAt: scan,
         stale: false,
         notice: "",
         sections: {
@@ -520,4 +520,28 @@ test("old scans retain reports while marking risk and active warnings unknown", 
   ).toBeVisible();
   await page.getByRole("link", { name: "Investigate lead report" }).click();
   await expect(page).toHaveURL(/\/story\/fixture-report$/);
+});
+
+test("a new scan updates the command center after paging through signals", async ({
+  page,
+}) => {
+  const later = {
+    ...event,
+    id: "second-fixture",
+    title: "Second agency bulletin",
+  };
+  const reports = [event, later];
+  await mockAPI(page, reports, 1);
+  await page.goto("/");
+  const priorities = page.locator("#priority-signals");
+  await priorities.getByRole("button", { name: "Show more signals" }).click();
+  await expect(
+    priorities.getByRole("link", { name: later.title, exact: true }),
+  ).toBeVisible();
+  const change = { ...event, id: "new-head", title: "Newly escalated warning" };
+  reports.unshift(change);
+  await page.evaluate(() => window.dispatchEvent(new Event("online")));
+  await expect(
+    priorities.getByRole("link", { name: change.title, exact: true }),
+  ).toBeVisible();
 });

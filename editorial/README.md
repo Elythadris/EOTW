@@ -19,6 +19,8 @@ An empty registry represents an edition with no published records. Each update m
 | `status` | Optional. Use `confirmed`, `developing`, or `speculation`. The default is `developing`, and predictions always carry the speculation label. |
 | `supersedes` | Required for corrections. Supply the `name` and HTTPS `url` of the publication being corrected. Other types can use it when formally replacing an earlier publication. |
 
+Optional `evidence` and `counterevidence` lists may each contain up to four attributed findings. Each finding includes `name`, `url` and `finding` (up to 420 characters), and its URL must already appear in `sources`. The writer should state what the cited material demonstrates or challenges. Set `topicClaim` to `true` on an editorial report explicitly tracking a claim or narrative. These editorial labels appear only when an editor supplies them.
+
 For a material correction, publish a correction entry with its own date and slug, link the earlier report through `supersedes`, and add a correction notice and link to the earlier Markdown article. Update the earlier summary and revision timestamp when the correction affects its abstract. EOTW keeps the former headline and summary in the edition timeline.
 
 The collector reads this repository's public raw registry. Browsers cannot submit entries to the collector. Collaborators with permission to change the production branch control publication. Run `node --test tests/ingest-editorial.test.mjs` on a remote runner to validate the registry and confirm every referenced article file exists.

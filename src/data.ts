@@ -320,7 +320,13 @@ export function useFeed(params: Record<string, string>, enabled = true) {
     if (!enabled) return;
     let active = true;
     let controller: AbortController | undefined;
-    const load = async (quiet = false) => {
+    const keys = new URLSearchParams(query);
+    const view = keys.get("view");
+    const liveList = ["signals", "briefing", "trending", "rabbit"].includes(
+      view || "",
+    );
+    const load = async (quiet = false, checkHead = false) => {
+      const requestCursor = checkHead ? "" : cursor;
       if (!active || (quiet && document.hidden)) return;
       controller?.abort();
       const ac = new AbortController();
@@ -330,8 +336,8 @@ export function useFeed(params: Record<string, string>, enabled = true) {
         s.key === query
           ? {
               ...s,
-              more: !!cursor,
-              busy: !quiet && !cursor,
+              more: !!requestCursor,
+              busy: !quiet && !requestCursor,
               error: quiet ? s.error : "",
             }
           : {
@@ -346,7 +352,9 @@ export function useFeed(params: Record<string, string>, enabled = true) {
         const r = await fetch(
           "/api/feed?" +
             query +
-            (cursor ? "&cursor=" + encodeURIComponent(cursor) : ""),
+            (requestCursor
+              ? "&cursor=" + encodeURIComponent(requestCursor)
+              : ""),
           { signal: ac.signal },
         );
         if (!r.ok) throw Error("Feed temporarily unavailable");
@@ -354,13 +362,34 @@ export function useFeed(params: Record<string, string>, enabled = true) {
         if (!Array.isArray(data.events) || !Array.isArray(data.health))
           throw Error("Invalid feed");
         if (!active || controller !== ac) return;
-        const next = cursor
-          ? merge(recent.get(query) || emptyFeed, data)
-          : data;
+        const previous = recent.get(query);
+        const scanChanged = previous?.updatedAt !== data.updatedAt;
+        if (requestCursor && liveList && previous && scanChanged) {
+          // Offsets from different scans cannot be combined: start again with the new order.
+          setPage({ query, cursor: "" });
+          return;
+        }
+        let next = requestCursor ? merge(previous || emptyFeed, data) : data;
+        if (checkHead && cursor && previous) {
+          const sameHead =
+            !scanChanged &&
+            data.events.every(
+              (e, i) =>
+                previous.events[i]?.id === e.id &&
+                previous.events[i]?.updatedAt === e.updatedAt,
+            );
+          if (sameHead && data.nextCursor) {
+            next = {
+              ...data,
+              events: previous.events,
+              nextCursor: previous.nextCursor,
+            };
+          } else {
+            setPage({ query, cursor: "" });
+          }
+        }
         recent.set(query, next);
         if (recent.size > 40) recent.delete(recent.keys().next().value!);
-        const keys = new URLSearchParams(query);
-        const view = keys.get("view");
         if (
           (view === "briefing" || view === "signals") &&
           !keys.has("id") &&
@@ -389,7 +418,7 @@ export function useFeed(params: Record<string, string>, enabled = true) {
     };
     void load();
     const refresh = () => {
-      if (!cursor) void load(true);
+      if (!cursor || liveList) void load(true, !!cursor);
     };
     const interval = window.setInterval(refresh, 45000);
     window.addEventListener("online", refresh);
