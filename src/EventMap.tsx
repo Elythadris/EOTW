@@ -24,7 +24,7 @@ const globeBounds = path.bounds({ type: "Sphere" });
 const globeWidth = globeBounds[1][0] - globeBounds[0][0];
 const globeHeight = globeBounds[1][1] - globeBounds[0][1];
 const world: Camera = { x: 0, y: 0, k: 1 };
-const atlas = countries as unknown as Topology<{ countries: GeometryCollection; land: GeometryCollection }>;
+const atlas = countries as unknown as Topology<{ countries: GeometryCollection<{ name?: string }>; land: GeometryCollection }>;
 const land = path(feature(atlas, atlas.objects.land)) || "";
 const borders = path(mesh(atlas, atlas.objects.countries, (a, b) => a !== b)) || "";
 const grid = path(geoGraticule().step([30, 30])()) || "";

@@ -6,7 +6,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { geoGraticule, geoInterpolate, geoOrthographic, geoPath } from "d3-geo";
+import { geoDistance, geoGraticule, geoInterpolate, geoOrthographic, geoPath } from "d3-geo";
 import { feature } from "topojson-client";
 import type { GeometryCollection, Topology } from "topojson-specification";
 import countries from "world-atlas/countries-110m.json";
@@ -130,7 +130,7 @@ function LocatorGlobe({
       return;
     }
     const interpolate = geoInterpolate(start, target);
-    const duration = Math.min(490, 260 + interpolate.distance * 100);
+    const duration = Math.min(490, 260 + geoDistance(start, target) * 100);
     const began = performance.now();
     let lastDraw = 0;
     let frame = 0;
