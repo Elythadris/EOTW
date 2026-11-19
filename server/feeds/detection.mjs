@@ -10,8 +10,8 @@ const capCertainty = { Observed: 4, Likely: 3, Possible: 2, Unlikely: 0, Unknown
 const pager = { green: 0, yellow: 1, orange: 2, red: 3 };
 const severeWeather = /\b(tornado|tsunami|flash flood|hurricane|storm surge|blizzard|extreme wind|ice storm)\b/i;
 const warning = /\bwarning\b/i;
-const quietWords = /\b(?:training exercise|simulation|drill|test message|annual report|risk of|fears? of|could|might|may trigger|averts?|prevent(?:s|ing)?|claims? of|rumou?rs? of|request for comments|public meeting|tabletop|what if|may soon|could trigger|could spark|prepares? for|preparing for|anniversary|years? ago|how to|opinion|retrospective|false claim|rescinded|rescinds?|reopened|reopens?|lift(?:ed|s) (?:an? |the )?(?:advisory|order|curfew)|(?:advisory|curfew|order|closure) (?:is |has been )?(?:lifted|ended|canceled|cancelled)|no threat|all clear|warning (?:canceled|cancelled|lifted)|outage (?:resolved|ended)|services? restored)\b/i;
-const domains = ["apnews.com","reuters.com","bbc.com","bbc.co.uk","npr.org","pbs.org","theguardian.com","globalvoices.org","theconversation.com","hawaiipublicradio.org","civilbeat.org","factcheck.org","un.org","who.int","reliefweb.int","icrc.org","federalregister.gov","mauicounty.gov","hawaii.gov","justice.gov"];
+const quietWords = /\b(?:training exercise|simulation|drill|test message|annual report|risk of|fears? of|could|might|may trigger|averts?|prevent(?:s|ing)?|claims? of|alleged|alleges?|unverified|avoids?|avoided|rumou?rs? of|request for comments|public meeting|tabletop|what if|may soon|could trigger|could spark|prepares? for|preparing for|anniversary|years? ago|how to|opinion|retrospective|false claim|rescinded|rescinds?|reopened|reopens?|lift(?:ed|s) (?:an? |the )?(?:advisory|order|curfew)|(?:advisory|curfew|order|closure) (?:is |has been )?(?:lifted|ended|canceled|cancelled)|no threat|all clear|warning (?:canceled|cancelled|lifted)|outage (?:resolved|ended)|services? restored)\b/i;
+const domains = ["apnews.com","reuters.com","bbc.com","bbc.co.uk","npr.org","pbs.org","theguardian.com","globalvoices.org","theconversation.com","hawaiipublicradio.org","civilbeat.org","ungeneva.org","factcheck.org","un.org","who.int","reliefweb.int","icrc.org","federalregister.gov","mauicounty.gov","hawaii.gov","justice.gov"];
 const criticalText = [
   {key:"evacuation",category:"Civil emergency",pattern:/\b(?:mandatory (?:evacuation|shelter)|evacuation (?:orders?|ordered)|ordered to evacuate|shelter.in.place order|boil.water (?:order|notice)|emergency (?:has been |was |is )?declared|declares? (?:a )?(?:state of |public health )?emergency)\b/i, impact:27, severity:15, monitor:"Check whether authorities expand, lift or revise the order."},
   {key:"water",category:"Water safety",pattern:/\b(?:unsafe.water advisory|do.not.(?:drink|use)(?:.water)? (?:advisory|notice|order)|(?:water (?:notice|advisory|order)|residents (?:are )?(?:told|urged|warned))[^.!?]{0,55}(?:do not drink|not to drink)|boil.water (?:advisory|notice|order))\b/i,impact:26,severity:15,monitor:"Check the issuing water authority’s affected service areas, testing and updates."},
@@ -31,7 +31,7 @@ function host(url) {
 function editorialConfidence(e) {
   if (e.editorialType) return (e.sources?.length || 0) > 1 ? 12 : 0;
   const domain = host(e.url);
-  if (domain.endsWith(".gov") || domain === "who.int" || domain.endsWith(".un.org")) return 15;
+  if (domain.endsWith(".gov") || domain === "who.int" || domain === "ungeneva.org" || domain.endsWith(".ungeneva.org") || domain.endsWith(".un.org")) return 15;
   return domains.some(d => domain === d || domain.endsWith("." + d)) ? 12 : 0;
 }
 export function nwsKeys(p) {
@@ -47,6 +47,7 @@ export function nwsKeys(p) {
   return episode ? {episode:"nws:"+episode,series:zones.length ? "nws:"+episode+":"+hash(zones.join("|")) : null} : {};
 }
 export function incidentKey(e) {
+  if (e.gdacs) return "gdacs:"+e.gdacs.type+":"+e.gdacs.eventId;
   if (e.origin?.episode) return e.origin.episode;
   if (e.source === "National Weather Service" && e.title && e.updatedAt) return "nws-bulletin:"+hash(e.title+"|"+e.updatedAt);
   return e.id;
@@ -89,6 +90,13 @@ function qualify(e,now,scope) {
       impactAlert>=2 || mag>=7 ? 20 : 14,age<=3*HOUR ? 15 : age<18*HOUR ? 9 : 4,
       e.status==="confirmed" ? 15 : 11,"USGS reports a magnitude "+mag+" earthquake"+(impactAlert ? " with a "+origin.pager+" PAGER impact alert." : "."),
       "Monitor USGS revisions and PAGER impact estimates. Magnitude alone does not establish damage.");
+  }
+  if (e.gdacs && e.source==="Global Disaster Awareness and Coordination System, GDACS") {
+    if (millis(e.gdacs.freshUntil)<=now || !["orange","red"].includes(e.gdacs.level) || !["TC","FL","WF","VO","DR"].includes(e.gdacs.type) || age>7*DAY) return null;
+    const red=e.gdacs.level==="red";
+    return template("Global disaster alerts","gdacs-"+e.gdacs.type,red?30:25,red?20:14,age<DAY?(red?16:12):5,15,
+      "GDACS issued a "+e.gdacs.level+" humanitarian impact alert for this event.",
+      "Monitor GDACS episode revisions and local authority guidance. Impact classifications are preliminary.");
   }
   if (e.source==="NASA EONET") {
     if (age>36*HOUR || !Number.isFinite(origin.magnitude)) return null;
@@ -153,9 +161,11 @@ export function observe(old, event, received, now, comparable) {
       changes.push("USGS raised the PAGER impact alert from "+a.pager+" to "+b.pager+".");
     if (received.source==="NASA EONET" && a.unit===b.unit && a.magnitude>0 && b.magnitude>=1.3*a.magnitude && (/^(?:kts?|knots?)$/i.test(b.unit) && b.magnitude>=64 || /acre/i.test(b.unit) && b.magnitude>=10000))
       changes.push("EONET raised the reported "+b.unit+" measurement from "+a.magnitude+" to "+b.magnitude+".");
+    if (old.gdacs?.level==="orange" && received.gdacs?.level==="red" && old.gdacs.eventId===received.gdacs.eventId)
+      changes.push("GDACS raised its humanitarian impact alert from orange to red.");
     if (received.source!=="USGS" && received.source!=="National Weather Service" && received.source!=="NASA EONET") {
       const oldSignal=qualify(old,now,old.scope), nextSignal=qualify(received,now,received.scope);
-      if (nextSignal && !oldSignal && old.url===received.url && received.updatedAt>old.updatedAt && now-millis(old.updatedAt)<2*DAY)
+      if (nextSignal && nextSignal.key!=="diplomacy" && !oldSignal && old.url===received.url && received.updatedAt>old.updatedAt && now-millis(old.updatedAt)<2*DAY)
         changes.push("The source revision now reports "+nextSignal.category.toLowerCase()+".");
     }
     if (changes.length) addChange(observation.changes,"escalation",at,changes.join(" "),"rise:"+hash(changes.join("|")+"|"+received.updatedAt));

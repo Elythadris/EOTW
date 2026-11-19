@@ -20,17 +20,17 @@ function relatedReports(signals) {
     const first=sorted[0];
     const domain=e=>{try{return new URL(e.url).hostname.replace(/^www\./,"");}catch{return "";}};
     const found=sorted.slice(1).find(e=>domain(e)!==domain(first) && incidentKey(e)!==incidentKey(first) && Math.abs(Date.parse(e.updatedAt)-Date.parse(first.updatedAt))<=12*3600000);
-    if (found) result.push({eventIds:[first.id,found.id],reason:"Both publishers report "+first.intelligence.category.toLowerCase()+" and name "+first.location+" within 12 hours. Shared timing and geography alone do not establish a connection."});
+    if (found) result.push({eventIds:[first.id,found.id],reason:"Two publisher domains report "+first.intelligence.category.toLowerCase()+" and name "+first.location+" within 12 hours. Shared timing and geography alone do not establish a connection."});
   }
   return result.slice(0,12);
 }
 function region(scope,events,health,lastScan,now,location) {
   const affected=events.filter(e=>e.scope===scope);
-  const isMaui=fold(location).startsWith("maui");
+  const isMaui=/^(maui(?: county)?|kahului|lahaina|kihei|wailuku|hana|kula|lanai|molokai)(?:,|$)/.test(fold(location).trim());
   const serviceOK=id=>health.some(h=>h.id===id && h.status==="ok");
   const adequate=scope==="local" ? isMaui && serviceOK("nws-hi") && serviceOK("maui-mema")
     : scope==="us" ? serviceOK("nws-us") && serviceOK("usgs") && ["justice","federal","conversation"].some(serviceOK)
-    : serviceOK("usgs") && serviceOK("eonet") && ["voices","gdelt","guardian"].some(serviceOK);
+    : serviceOK("usgs") && (serviceOK("eonet") || serviceOK("gdacs")) && ["voices","gdelt","guardian","un-geneva"].some(serviceOK);
   const freshScan=fresh(lastScan,now,20*60000);
   const references=affected.slice(0,4).map(e=>e.id);
   if (!freshScan) return {scope,count:affected.length,level:"unknown",eventIds:references,reason:"No successful collection in the last 20 minutes."};

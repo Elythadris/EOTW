@@ -129,6 +129,7 @@ export function record(raw, now = Date.now()) {
     updatedAt,
     category,
     ...(raw.origin ? { origin: raw.origin } : {}),
+    ...(raw.gdacs ? { gdacs:raw.gdacs,origin:{series:"gdacs:"+raw.gdacs.type+":"+raw.gdacs.eventId} } : {}),
     ...(raw.alertArea && raw.source === "National Weather Service" ? { alertArea: raw.alertArea } : {}),
     ...(raw.editorialType ? {
       editorialType: raw.editorialType,

@@ -30,7 +30,7 @@ Import the repository into Netlify and select `main`. Netlify reads the command,
 
 ## Publish original material
 
-Editors can add sourced original reporting, investigations, predictions and corrections through the [editorial collection](editorial/README.md). The scheduled collector reads published records from GitHub. A change confined to the editorial directory updates the archive without rebuilding the frontend. The empty initial collection is intentional.
+Editors can add sourced original reporting, investigations, predictions and corrections through the [editorial collection](editorial/README.md). The scheduled collector reads published records from GitHub. A change confined to the editorial directory updates the archive without rebuilding the frontend. The published UAP public-record review illustrates how attributed evidence and counterevidence appear in Rabbit Hole.
 
 ## Data and operations
 

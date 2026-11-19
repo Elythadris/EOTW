@@ -126,7 +126,7 @@ export async function collect({store=repository(),now=Date.now(),defs=definition
       const predecessor=references.find(e=>e.location===received.location);
       const id=byUrl.get(received.url) || bySeries.get(received.origin?.series) || predecessor?.id || byHeadline.get(fingerprint(received)) || received.id;
       let old=pool.get(id);
-      const newNotice=received.source==="National Weather Service" && old && old.url!==received.url;
+      const newNotice=(received.source==="National Weather Service" || received.gdacs) && old && old.url!==received.url;
       if (newNotice && old.updatedAt>received.updatedAt) old=undefined;
       const combined=combine(old,received,stamp(now));
       if (newNotice) {combined.id=received.id;combined.publishedAt=received.publishedAt;}

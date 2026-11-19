@@ -1,1 +1,39 @@
-[]
+[
+  {
+    "slug": "2026-11-19-reading-public-uap-records",
+    "type": "investigation",
+    "title": "What do the public UAP records establish?",
+    "summary": "The National Archives holds photographs, recordings and written reports about unidentified phenomena. NASA identifies a gap between documenting a sighting and establishing its origin. This reference review explains what each source can support.",
+    "byline": "EOTW public-record review · AI-assisted",
+    "publishedAt": "2026-11-19T22:44:00Z",
+    "updatedAt": "2026-11-19T22:44:00Z",
+    "scope": "us",
+    "location": "United States",
+    "status": "developing",
+    "topicClaim": true,
+    "sources": [
+      {
+        "name": "National Archives · UFO and UAP records",
+        "url": "https://www.archives.gov/research/topics/uaps"
+      },
+      {
+        "name": "NASA Science · UAP study FAQ",
+        "url": "https://science.nasa.gov/uap/faqs/"
+      }
+    ],
+    "evidence": [
+      {
+        "name": "National Archives · UFO and UAP records",
+        "url": "https://www.archives.gov/research/topics/uaps",
+        "finding": "The National Archives catalogs UAP-related photographs, moving images and written records. These holdings document that reports and materials exist."
+      }
+    ],
+    "counterevidence": [
+      {
+        "name": "NASA Science · UAP study FAQ",
+        "url": "https://science.nasa.gov/uap/faqs/",
+        "finding": "NASA says available evidence does not support an extraterrestrial origin for UAP. It also reports that too few high-quality observations are available to draw broad scientific conclusions."
+      }
+    ]
+  }
+]

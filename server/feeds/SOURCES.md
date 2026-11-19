@@ -6,6 +6,8 @@ The production collector wakes every five minutes UTC. An adapter runs when its 
 | --- | --- | --- |
 | NWS | 5 minutes | Active Hawaiʻi alerts and severe or extreme alerts across the U.S. |
 | USGS | 5 minutes | Magnitude 2.5 or greater earthquakes from the past day |
+| GDACS | 30 minutes | Current orange and red non-seismic disaster alerts in the official RSS. Earthquake notices are handled by USGS. |
+| United Nations Office at Geneva | 1 hour | Official meeting summaries and humanitarian press notices. Current named consequences must qualify separately. |
 | NASA EONET | 30 minutes | Open natural events observed in the last 14 days |
 | County of Maui and Hawaiʻi EMA | 15 minutes | County news releases, dedicated MEMA, Water Department and Road Notifications channels, and state emergency management bulletins |
 | Federal Register | 1 hour | Recently published U.S. public notices and regulations |
@@ -28,7 +30,7 @@ EOTW’s repository-managed editorial feed is checked every five minutes. Its pu
 
 Netlify provides the reporting Blobs store in production. The initial document migration opens a versioned empty state on first use. The collector writes a consistent snapshot after updating the archive. Conditional writes protect collector retries. The dashboard reads that snapshot independently of deployments and upstream outages. Standard reads are cached at the CDN for 30 seconds with query-aware variation. The archive keeps historical non-social reports when weather alerts expire, move out of a provider's active list or a provider is disabled.
 
-Use DISABLED_FEEDS to disable individual provider IDs, separated by commas. The IDs are editorial, nws-hi, nws-us, usgs, eonet, maui, maui-mema, maui-water, maui-road, hiema, federal, uap-records, justice, conversation, voices, scicheck, gdelt, guardian and reddit. An upstream 429 defers the next poll, honoring Retry-After. Other consecutive failures apply exponential backoff. Cached public records continue to be available. A source that misses three expected checks (at least twenty minutes) is marked overdue.
+Use DISABLED_FEEDS to disable individual provider IDs, separated by commas. The IDs are editorial, nws-hi, nws-us, usgs, eonet, gdacs, un-geneva, maui, maui-mema, maui-water, maui-road, hiema, federal, uap-records, justice, conversation, voices, scicheck, gdelt, guardian and reddit. An upstream 429 defers the next poll, honoring Retry-After. Other consecutive failures apply exponential backoff. Cached public records continue to be available. A source that misses three expected checks (at least twenty minutes) is marked overdue.
 
 Set GUARDIAN_API_KEY to a key licensed for the site's intended use. For Reddit, supply REDDIT_CLIENT_ID, REDDIT_CLIENT_SECRET and REDDIT_USER_AGENT using the app's registered identity. Set REDDIT_APPROVED=true only after obtaining approval for the actual public display use case. The collector uses app-only OAuth, displays public discussion metadata, excludes adult and removed posts, replaces its short-lived list every poll and excludes it from the durable archive. Responses with social entries bypass the CDN cache. Disabling Reddit and running the collector drops the transient data from the current snapshot.
 
@@ -56,7 +58,7 @@ The signal desk screens active source records and groups sibling notices. Each q
 The priority score sums these six components. Scores of 40–62 are Watch, 63–78 Elevated, and 79 or above High. Coverage, certainty and timing rules can cap the level. The numeric score ranks reports for attention. It has no statistical interpretation as an event probability.
 
 - Weather screening uses the official CAP fields for severity, urgency and certainty. An active severe warning can be Expected or Immediate. A watch or legacy record missing urgency or certainty can rise only to Watch. An unexpired warning whose urgency is below Immediate or whose certainty is below Likely can rise only to Elevated. Advisories, statements, tests and canceled notices stay outside the signal desk.
-- Seismic screening requires magnitude 6 globally, magnitude 5 for explicitly local reports, or a non-green USGS PAGER impact alert. Reports older than the active window drop out. EONET observations currently qualify through reported winds of at least 64 knots or wildfire extent of at least 10,000 acres. An open event without a qualifying measure remains discoverable through the map and archive.
+- Seismic screening requires magnitude 6 globally, magnitude 5 for explicitly local reports, or a non-green USGS PAGER impact alert. Reports older than the active window drop out. EONET observations currently qualify through reported winds of at least 64 knots or wildfire extent of at least 10,000 acres. An open EONET event without a qualifying measure remains discoverable through the map and archive. GDACS contributes current orange and red humanitarian-impact alerts for non-seismic events. A GDACS alert level is a modelled assessment of potential impact.
 - Public reporting must name a consequence in its headline and have a recognized reporting or official source. Rules cover protective orders, unsafe water, hazard-related road closures, widespread utility disruption, cyber incidents with reported population or service effects, financial restrictions, civilian consequences of conflict, unrest with curfews or public-service disruption, formal diplomacy and public health actions. Speculation, social engagement, drills, hypothetical outcomes and retrospective reporting cannot establish a threat. Exact phrase matching can miss significant developments, especially when the title lacks context or language coverage.
 - A region’s level describes its strongest qualifying report. A local flood warning can determine the U.S. label while affecting only its named zones. Quiet requires a recent successful collection and coverage across relevant primary sources. For Maui, both NWS Hawaiʻi and the dedicated MEMA feed must be healthy. Custom locations with no direct coverage can return Unknown.
 
@@ -80,6 +82,7 @@ The signals endpoint returns exact counts before pagination. The top-level `tota
 
 ## Source references
 
+- [GDACS alerts](https://www.gdacs.org/xml/rss.xml), [United Nations Office at Geneva](https://www.ungeneva.org/news-media/press-items-list/rss.xml)
 - [NWS API](https://www.weather.gov/documentation/services-web-api), [USGS GeoJSON](https://earthquake.usgs.gov/earthquakes/feed/v1.0/geojson.php), [EONET v3](https://eonet.gsfc.nasa.gov/docs/v3)
 - [County of Maui](https://www.mauicounty.gov/RSSFeed.aspx?ModID=1&CID=0), [Hawaiʻi EMA](https://dod.hawaii.gov/hiema/feed/), [Federal Register API](https://www.federalregister.gov/developers/documentation/api/v1)
 - [Natural Earth map data](https://www.naturalearthdata.com/about/terms-of-use/), [Census TIGERweb](https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/State_County/MapServer)

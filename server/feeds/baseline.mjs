@@ -3,8 +3,8 @@ import { incidentKey } from "./detection.mjs";
 
 const series = {
   usgs: { label: "USGS earthquakes of magnitude 4.5+", accepts: e => Number.isFinite(e.origin?.magnitude) && e.origin.magnitude>=4.5 },
-  "nws-us": {label:"U.S. severe or extreme NWS warning episodes",accepts:e=>e.origin?.episode && /\bwarning\b/i.test(e.origin.event) && ["Severe","Extreme"].includes(e.origin.severity)},
-  "nws-hi": {label:"Hawaiʻi NWS warning episodes",accepts:e=>e.origin?.episode && /\bwarning\b/i.test(e.origin.event)},
+  "nws-us": {label:"U.S. severe or extreme NWS warning episodes",accepts:e=>e.origin?.episode && e.origin.issued && /\bwarning\b/i.test(e.origin.event) && ["Severe","Extreme"].includes(e.origin.severity)},
+  "nws-hi": {label:"Hawaiʻi NWS warning episodes",accepts:e=>e.origin?.episode && e.origin.issued && /\bwarning\b/i.test(e.origin.event)},
 };
 const dateKey = time => new Date(time).toISOString().slice(0,10);
 const bits = n => { let count=0; while(n){count+=n&1;n>>=1;} return count; };

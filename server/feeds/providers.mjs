@@ -1,3 +1,4 @@
+import { gdacs } from "./gdacs.mjs";
 import { alertArea } from "./alert-area.mjs";
 import { nwsKeys } from "./detection.mjs";
 import { galArticles, galBytes, galUrl } from "./gal.mjs";
@@ -76,7 +77,8 @@ export function nws(text) {
         alertArea: alertArea(item.geometry),
         origin: {
           ...nwsKeys(p), event: p.event, severity: p.severity, urgency: p.urgency, certainty: p.certainty,
-          onset: date(p.onset || p.effective), incidentStart: date(p.onset || p.sent),
+          onset: date(p.onset || p.effective), incidentStart: date(p.sent),
+          issued: (p.parameters?.VTEC || []).some(code => /^\/O\.NEW\./.test(code)),
           references: (p.references || []).map(ref => ref?.["@id"]).filter(url =>
             typeof url === "string" && url.startsWith("https://api.weather.gov/alerts/")).slice(0, 8),
         },
@@ -141,7 +143,7 @@ export function rss(text, options) {
     source: options.name,
     title: item.title,
     url: item.link,
-    publishedAt: item.pubDate || item["dc:date"],
+    publishedAt: typeof item.pubDate === "string" ? item.pubDate.replace(/ CEST$/, " +0200").replace(/ CET$/, " +0100") : item["dc:date"],
     location: options.location || "",
     category: options.category,
     scope: options.scope,
@@ -344,6 +346,12 @@ export function definitions(env = process.env) {
       id, name, "https://www.mauicounty.gov/RSSFeed.aspx?CID=" + channel + "&ModID=1", 15,
       { location: "Maui County, Hawaiʻi", county: "15009", scope: "us", category: "County bulletin", official: true },
     )),
+    {
+      id: "gdacs", name: "Global Disaster Awareness and Coordination System, GDACS",
+      url: "https://www.gdacs.org/xml/rss.xml", parse: gdacs, minutes: 30, replace: true, maxBytes: 2100000,
+    },
+    rssSource("un-geneva", "United Nations Office at Geneva", "https://www.ungeneva.org/news-media/press-items-list/rss.xml", 60,
+      {scope:"global",category:"UN press bulletin",official:true,limit:25}),
     {
       id: "federal",
       name: "Federal Register",

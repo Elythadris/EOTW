@@ -1,11 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { record, combine, DAY, HOUR } from "../server/feeds/model.mjs";
-import { usgs,nws } from "../server/feeds/providers.mjs";
+import { usgs,nws,rss } from "../server/feeds/providers.mjs";
 import { annotate,incidentKey,nwsKeys,observe,linkCorrection } from "../server/feeds/detection.mjs";
 import { signalDesk,retainEpisodeChanges } from "../server/feeds/signal-desk.mjs";
 import { addPoll,anomaliesFor } from "../server/feeds/baseline.mjs";
-import { parseFeedParams } from "../server/feeds/store.mjs";
+import { parseFeedParams, searchEvents, SNAPSHOT_KEY } from "../server/feeds/store.mjs";
 import { editorialRows } from "../server/feeds/editorial.mjs";
 
 const now=Date.parse("2026-06-15T12:00:00Z");
@@ -120,4 +120,22 @@ test("credible accelerating narrative coverage stays out of threat counts",()=>{
   assert.equal(result.hotEvents[0].intelligence,undefined);
   assert.equal(linkCorrection(correctionEvent,source,now,false).observations.changes.length,0);
   assert.equal(desk([{...joined,source:"Reddit",transient:true}]).hotEvents.length,0);
+});
+
+test("the source date is preserved for Geneva bulletins, and GDACS alert levels are independent of USGS",()=>{
+  const xml="<rss><channel><title>Press Items</title><item><title>Meeting</title><link>https://www.ungeneva.org/notice</link><pubDate>Wed, 18 Nov 2026 18:49:09 CET</pubDate></item></channel></rss>";
+  assert.equal(new Date(rss(xml,{name:"UN"})[0].publishedAt).toISOString(),"2026-11-18T17:49:09.000Z");
+  const e=sample({source:"Global Disaster Awareness and Coordination System, GDACS",title:"Tropical cyclone",url:"https://www.gdacs.org/report",gdacs:{type:"TC",level:"red",eventId:"1",episodeId:"2",freshUntil:iso(now+HOUR)}});
+  assert.equal(annotate(e,now,"Maui").category,"Global disaster alerts");
+  assert.equal(annotate({...e,gdacs:{...e.gdacs,type:"EQ"}},now,"Maui"),null);
+  assert.equal(annotate({...e,gdacs:{...e.gdacs,freshUntil:iso(now-1)}},now,"Maui"),null);
+});
+test("an individual active NWS notice exposes each currently affected zone as a distinct archived link",async()=>{
+  const a=cap(), b=cap({url:"https://api.weather.gov/alerts/other-zone",location:"Another county"});
+  const state={version:1,events:[a,b],days:[],updatedAt:iso(now),providers:{agency:{ids:[a.id,b.id],status:"ok",lastSuccess:iso(now)}}};
+  const store={get:async key=>key===SNAPSHOT_KEY?state:null};
+  const result=await searchEvents({id:b.id},{store,now,defs:[{id:"agency",name:"Test agency",minutes:5}]});
+  assert.equal(result.events[0].id,b.id);
+  assert.equal(result.events[0].bulletinCount,2);
+  assert.deepEqual(new Set(result.events[0].bulletins.map(x=>x.id)),new Set([a.id,b.id]));
 });
