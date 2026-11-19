@@ -1,4 +1,4 @@
-import { annotate, observe, incidentKey, linkCorrection } from "./detection.mjs";
+import { annotate, observe, incidentKey, linkCorrection, priorWarningAreas, observeExpansion } from "./detection.mjs";
 import { addPoll } from "./baseline.mjs";
 import { collapseBulletins, signalDesk, retainEpisodeChanges } from "./signal-desk.mjs";
 import { createHash } from "node:crypto";
@@ -74,9 +74,10 @@ export async function collect({store=repository(),now=Date.now(),defs=definition
   const due=defs.filter(def=>!def.disabled && (!state.providers[def.id] || (state.providers[def.id].nextDue || 0)<=now));
   const result=await Promise.allSettled(due.map(def=>{
     const old=sourceState(state,def.id);
-    const validators=(["nws-us","nws-hi","usgs","eonet"].includes(def.id) && old.signalSchema!==1) ? {...old,etag:null,modified:null} : old;
+    const validators=(["nws-us","nws-hi","usgs","eonet"].includes(def.id) && old.signalSchema!==2) ? {...old,etag:null,modified:null} : old;
     return load(def,validators,{now});
   }));
+  const previousAreas=priorWarningAreas(state.events,now);
   const pool=new Map(state.events.map(e=>[e.id,e]));
   const byUrl=new Map(), byHeadline=new Map(), bySeries=new Map();
   function index(e) {
@@ -111,7 +112,7 @@ export async function collect({store=repository(),now=Date.now(),defs=definition
       if (Object.hasOwn(batch,"galEtag")) entry.galEtag=batch.galEtag;
     }
     const continuous=before.status==="ok" && now-Date.parse(before.lastSuccess)<=def.minutes*90000;
-    entry.signalSchema=1;
+    entry.signalSchema=2;
     const observed=[];
     if (batch.unchanged) {addPoll(state,def.id,now,observed,continuous);continue;}
     entry.etag=batch.etag || null;
@@ -131,6 +132,7 @@ export async function collect({store=repository(),now=Date.now(),defs=definition
       const combined=combine(old,received,stamp(now));
       if (newNotice) {combined.id=received.id;combined.publishedAt=received.publishedAt;}
       let next=received.transient ? combined : observe(old,combined,received,now,continuous);
+      if (received.origin?.areaAction) next=observeExpansion(next,previousAreas,before.lastSuccess,now,continuous);
       if (received.editorialType==="correction") next=linkCorrection(next,pool.get(byUrl.get(received.supersedes?.url)),now,continuous);
       if(!old) observed.push(next);
       pool.set(next.id,next);

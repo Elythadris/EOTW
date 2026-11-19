@@ -44,7 +44,10 @@ export function nwsKeys(p) {
     return [issueYear,...parts.slice(1,5)].join(".");
   }).filter(Boolean);
   const episode = [...new Set(tags)].sort().join("+");
-  return episode ? {episode:"nws:"+episode,series:zones.length ? "nws:"+episode+":"+hash(zones.join("|")) : null} : {};
+  if (!episode) return {};
+  const expansion = [...new Set((p.parameters?.VTEC || []).map(v=>/^\/O\.(EXA|EXB)\./.exec(v)?.[1]).filter(Boolean))];
+  return {episode:"nws:"+episode,series:zones.length ? "nws:"+episode+":"+hash(zones.join("|")) : null,
+    zones:zones.slice(0,180),areaAction:tags.length===1 && expansion.length===1 ? expansion[0] : null};
 }
 export function incidentKey(e) {
   if (e.gdacs) return "gdacs:"+e.gdacs.type+":"+e.gdacs.eventId;
@@ -205,4 +208,33 @@ export function narrativeHot(event,now,location) {
     rank:correction?75:65,rankReasons:[correction ? "A cited correction supersedes a record already indexed on an earlier scan." :
     "At least two new publisher domains added coverage in six hours, exceeding the prior six-hour count. Syndication is possible.",
     "Ranking measures reporting activity. The underlying claim retains its own verification status."]};
+}
+
+export function priorWarningAreas(events,now) {
+  const families=new Map();
+  for(const event of events) {
+    const origin=event.origin;
+    if(event.source!=="National Weather Service" || !origin?.episode || !origin.zones?.length ||
+       !event.observations?.firstSeenAt || millis(event.observations.firstSeenAt)>=now-MINUTE ||
+       millis(event.expiresAt)<now-15*MINUTE) continue;
+    const family=families.get(origin.episode) || {zones:new Set(),latest:0};
+    for(const zone of origin.zones) family.zones.add(zone);
+    family.latest=Math.max(family.latest,millis(event.updatedAt));
+    families.set(origin.episode,family);
+  }
+  return families;
+}
+export function observeExpansion(event,families,lastSuccess,now,continuous) {
+  const origin=event.origin;
+  if (!continuous || event.source!=="National Weather Service" || !["EXA","EXB"].includes(origin?.areaAction) ||
+      !warning.test(origin.event || "") || !origin.zones?.length) return event;
+  const previous=families.get(origin.episode), issued=millis(event.updatedAt);
+  if (!previous || issued<=previous.latest || issued<millis(lastSuccess)-MINUTE || issued>now+MINUTE ||
+      now-issued>10*MINUTE || !origin.zones.some(zone=>!previous.zones.has(zone))) return event;
+  const observation={...event.observations,changes:[...(event.observations?.changes || [])]};
+  const version="area:"+hash(origin.episode+"|"+Math.floor(issued/(5*MINUTE)));
+  addChange(observation.changes,"escalation",event.updatedAt,
+    "NWS explicitly expanded the warning area ("+origin.areaAction+"). This notice includes a newly listed zone in "+(event.location || "the previously observed episode")+".",version);
+  observation.changes=observation.changes.slice(-24);
+  return {...event,observations:observation};
 }

@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { record, combine, DAY, HOUR } from "../server/feeds/model.mjs";
 import { usgs,nws,rss } from "../server/feeds/providers.mjs";
-import { annotate,incidentKey,nwsKeys,observe,linkCorrection } from "../server/feeds/detection.mjs";
+import { annotate,incidentKey,nwsKeys,observe,linkCorrection,priorWarningAreas,observeExpansion } from "../server/feeds/detection.mjs";
 import { signalDesk,retainEpisodeChanges } from "../server/feeds/signal-desk.mjs";
 import { addPoll,anomaliesFor } from "../server/feeds/baseline.mjs";
 import { parseFeedParams, searchEvents, SNAPSHOT_KEY } from "../server/feeds/store.mjs";
@@ -138,4 +138,27 @@ test("an individual active NWS notice exposes each currently affected zone as a 
   assert.equal(result.events[0].id,b.id);
   assert.equal(result.events[0].bulletinCount,2);
   assert.deepEqual(new Set(result.events[0].bulletins.map(x=>x.id)),new Set([a.id,b.id]));
+});
+
+test("NWS area expansion is a new official zone in a previously observed family, across a healthy scan",()=>{
+  const vtec=(action,zone,at)=>nwsKeys({sent:iso(at),geocode:{UGC:[zone]},parameters:{VTEC:["/O."+action+".PHFO.FF.W.0001.260615T0900Z-260615T1400Z/"]}});
+  const old=cap({origin:{...vtec("NEW","HIZ001",now-HOUR),event:"Flash Flood Warning",severity:"Severe",urgency:"Immediate"},updatedAt:iso(now-HOUR)});
+  const previous=observe(null,old,old,now-HOUR,true);
+  const known=priorWarningAreas([previous],now);
+  function next(action,zone,at=now-MIN) {
+    const e=cap({origin:{...vtec(action,zone,at),event:"Flash Flood Warning",severity:"Severe",urgency:"Immediate"},updatedAt:iso(at)});
+    return observe(null,e,e,now,true);
+  }
+  const MIN=60000;
+  const area=next("EXA","HIZ002");
+  const expand=e=>observeExpansion(e,known,iso(now-5*MIN),now,true);
+  const result=expand(area);
+  assert.equal(result.observations.changes[0].kind,"escalation");
+  assert.match(result.observations.changes[0].description,/explicitly expanded/);
+  assert.equal(expand(result).observations.changes.length,1);
+  assert.equal(expand(next("EXB","HIZ003")).observations.changes[0].version,result.observations.changes[0].version);
+  for(const [act,zone] of [["EXT","HIZ002"],["CON","HIZ002"],["EXA","HIZ001"]]) assert.equal(expand(next(act,zone)).observations.changes.length,0);
+  assert.equal(observeExpansion(area,new Map(),iso(now-5*MIN),now,true).observations.changes.length,0);
+  assert.equal(observeExpansion(area,known,iso(now-5*MIN),now,false).observations.changes.length,0);
+  assert.equal(expand(next("EXA","HIZ002",now-30*MIN)).observations.changes.length,0);
 });
