@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { askHandler } from "../server/assistant/ask.mjs";
 import { groundedAnswer } from "../server/assistant/answer.mjs";
 import { dailyLimits, reserve } from "../server/assistant/quota.mjs";
+import { modelRecords, readCompletion, providerProblem } from "../server/assistant/passages.mjs";
 import { inputQuery, retrieve } from "../server/assistant/retrieval.mjs";
 
 const event = {
@@ -232,4 +233,27 @@ test("concurrent daily reservations cannot exceed network or site caps", async (
     { global: 25, visitor: 5 },
   );
   assert.equal(dailyLimits(() => "bad").global, 0);
+});
+
+test("a selected warning question stays anchored and its official affected area is citable",async () => {
+  const primary={...event,source:"National Weather Service",category:"Weather",location:"Example County and North Example County"},
+    unrelated={...event,id:"elsewhere",title:"Warning in Other County"};
+  const calls=[];
+  const search=async opts=>{calls.push(opts);return {events:[primary,unrelated]};};
+  const query=inputQuery({question:"Which counties are covered by this storm warning?",storyId:primary.id});
+  const records=await retrieve(query,search);
+  assert.deepEqual(calls.map(x=>x.id),[primary.id]);assert.equal(records.length,1);
+  const payload=modelRecords(records)[0];
+  const area=payload.evidence.find(passage=>passage.passage===primary.location);
+  assert.ok(area);
+  const answer=groundedAnswer({paragraphs:[{text:"NWS lists the two example counties.",support:[area.ref]}]},records);
+  assert.equal(answer.citations[0].url,event.url);
+  assert.equal(groundedAnswer({paragraphs:[{text:"A statement",support:["99.1"]}]},records),null);
+});
+test("upstream diagnostics classify failures without including any raw model output", () => {
+  assert.throws(()=>readCompletion({choices:[{finish_reason:"length",message:{content:"private partial text"}}]}),
+    err=>providerProblem(err).category==="truncated");
+  assert.throws(()=>readCompletion({choices:[{message:{content:"private broken JSON"}}]}),
+    err=>providerProblem(err).category==="invalid-json");
+  assert.deepEqual(providerProblem(Object.assign(Error("secret"),{status:403})),{category:"provider-http",httpStatus:403});
 });

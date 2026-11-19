@@ -3,6 +3,7 @@ import { searchEvents } from "../feeds/store.mjs";
 import { boundedString, errorResponse, setting } from "./http.mjs";
 import { dailyLimits, reserve } from "./quota.mjs";
 import { provider } from "./answer.mjs";
+import { providerProblem } from "./passages.mjs";
 import { briefingMaterial, cachedBrief, DEFAULT_LOCATION, fallbackBrief, HOUR, makeEntry, validateSituation } from "./situation-model.mjs";
 
 const currentKey = "v1/maui/latest";
@@ -58,7 +59,15 @@ export async function generateSituation(context, injected = {}) {
   const slot = Math.floor(start / (6 * HOUR));
   const store = storage();
   const previous = await store.getWithMetadata(slotKey,{type:"json"});
-  if (previous && previous.data.slot >= slot) return {status:"already-checked"};
+  const old = previous?.data;
+  const sameSlot = old?.slot === slot;
+  const legacy = sameSlot && !old.status;
+  const attempts = sameSlot ? (old.attempt || 1) : 0;
+  const fiveMinutes = 5 * 60000;
+  if (old?.slot > slot || (sameSlot && !legacy && (attempts >= 2 ||
+      !["retry","running"].includes(old.status) || Math.floor(start/fiveMinutes) <= Math.floor(old.startedAt/fiveMinutes) || start - old.startedAt < 30000))) {
+    return {status:"already-checked"};
+  }
   const limit = briefingLimit(env);
   const limits = dailyLimits(env);
   if (!limit || !limits.global) return {status:"disabled"};
@@ -69,24 +78,46 @@ export async function generateSituation(context, injected = {}) {
   ]);
   if (!material.records.length || !material.updatedAt || start - Date.parse(material.updatedAt) > HOUR) return {status:"awaiting-current-reports"};
   if (clock() - start > 10000) return {status:"deferred"};
-  // Each six-hour window owns one generation opportunity, even on concurrent invocations or redeploys.
-  const write = await store.setJSON(slotKey,{slot},previous ? {onlyIfMatch:previous.etag} : {onlyIfNew:true});
+  // A legacy slot has no terminal status. A saved edition from its window proves success,
+  // otherwise one migration recovery is eligible within the same unchanged daily quotas.
+  if (legacy && cached?.brief?.generatedAt && Math.floor(Date.parse(cached.brief.generatedAt)/(6*HOUR)) === slot) {
+    return {status:"already-checked"};
+  }
+  const state = {slot,attempt:attempts+1,startedAt:start,status:"running"};
+  const write = await store.setJSON(slotKey,state,previous ? {onlyIfMatch:previous.etag} : {onlyIfNew:true});
   if (!write.modified) return {status:"already-checked"};
+  const finish = async (status, meta = {}, retry = false) => {
+    // The next HTTP-accessible code path is read-only. Only a later scheduled tick
+    // can claim this retry, and every attempt must acquire new site and service permits.
+    const persistedStatus = retry && state.attempt < 2 ? "retry" : status;
+    await store.setJSON(slotKey,{...state,status:persistedStatus,outcome:status,...meta},
+      write.etag ? {onlyIfMatch:write.etag} : {});
+    return {status,attempt:state.attempt,elapsedMs:clock()-start,...meta};
+  };
   const timestamp = new Date(start).toISOString();
   if (cached?.fingerprint === material.fingerprint && cachedBrief(cached,material,start)) {
     await store.setJSON(currentKey,{...cached,checkedAt:timestamp});
-    return {status:"unchanged"};
+    return finish("unchanged");
   }
   const allowed = await permit({
     ip:"service:scheduled-situation",site:context.site?.id || "", limits:{global:limits.global,visitor:limit}, now:new Date(start),
     // Budget pruning runs outside the short scheduled invocation in regular reader requests.
   });
-  if (!allowed) return {status:"budget"};
-  if (clock() - start > 14000) return {status:"deadline"};
-  const raw = await generate({location:DEFAULT_LOCATION,localSignalPresent:material.records.some(record => record.scope === "local"),task:"Summarize only these qualifying public signals; if none is local, do not imply the national or world reports are local."},material.records);
-  const content = validateSituation(raw,material.records);
-  if (!content) return {status:"unsupported-answer"};
+  if (!allowed) return finish("budget");
+  if (clock() - start > 9000) return finish("deadline",{},true);
+  let raw;
+  try {
+    raw = await generate({location:DEFAULT_LOCATION,localSignalPresent:material.records.some(record => record.scope === "local")},material.records);
+  } catch (error) {
+    const problem = providerProblem(error);
+    const canRetry = !problem.httpStatus ? !["refusal","upstream-filter"].includes(problem.category) :
+      [408,409,429].includes(problem.httpStatus) || problem.httpStatus >= 500;
+    return finish("provider-failure",problem,canRetry);
+  }
+  let reason = "invalid-selection";
+  const content = validateSituation(raw,material.records,code => {reason=code;});
+  if (!content) return finish("unsupported-answer",{reason},true);
   const brief = {location:DEFAULT_LOCATION,mode:"ai",generatedAt:timestamp,updatedAt:material.updatedAt,stale:false,notice:"Scheduled AI briefing from the cited reports.",...content};
   await store.setJSON(currentKey,makeEntry(brief,material,timestamp));
-  return {status:"published",sourceCount:content.citations.length};
+  return finish("published",{sourceCount:content.citations.length});
 }

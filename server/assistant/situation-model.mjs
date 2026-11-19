@@ -1,5 +1,6 @@
 import { digest } from "./http.mjs";
 import { groundedAnswer } from "./answer.mjs";
+import { evidenceIndex } from "./passages.mjs";
 import { reportRecord, sourceCandidate } from "./evidence.mjs";
 
 export const DEFAULT_LOCATION = "Maui";
@@ -73,19 +74,34 @@ export function fallbackBrief(material, now, notice) {
     sections,citations:leads.map(stripToCitation) };
 }
 
-export function validateSituation(raw, records) {
+export function validateSituation(raw, records, onInvalid = () => {}) {
+  const passages = evidenceIndex(records);
+  const reject = reason => { onInvalid(reason); return null; };
   const sections = emptySections();
   const used = new Set();
   for (const name of categories) {
     const paragraphs = raw?.[name];
-    if (!Array.isArray(paragraphs) || !paragraphs.length || paragraphs.length > 2) return null;
-    for (const paragraph of paragraphs) {
-      if (!paragraph || (paragraph.text?.length ?? 0) > 340) return null;
-      const result = groundedAnswer({ paragraphs:[paragraph] }, records);
+    if (!Array.isArray(paragraphs) || !paragraphs.length || paragraphs.length > 2) return reject("section-size");
+    for (const selected of paragraphs) {
+      let paragraph = selected;
+      if (typeof selected === "string") {
+        const passage = passages.get(selected);
+        const record = records.find(row => row.id === passage?.id);
+        if (!record) return reject("unknown-passage");
+        // The model selects the report; publish only its verified title and the
+        // deterministic, attributed signal assessment attached to that report.
+        const contents = {whatHappened:record.title, whyItMatters:record.signal?.why || record.excerpt,
+          whatToMonitor:record.signal?.monitor || "Check the latest public notice from " + record.source + "."};
+        const text = clipped(contents[name]).replace(/[<>\[\]]/g,"");
+        paragraph = {text,support:[selected]};
+      }
+      if (!paragraph || (paragraph.text?.length ?? 0) > 340) return reject("point-length");
+      const result = groundedAnswer({ paragraphs:[paragraph] }, records,onInvalid);
       if (!result) return null;
       const citationIds = result.citations.map(item => records.find(record => record.url === item.url).id);
       citationIds.forEach(id => used.add(id));
-      sections[name].push({text:clipped(paragraph.text),citationIds});
+      const text = clipped(paragraph.text);
+      if (!sections[name].some(point => point.text === text)) sections[name].push({text,citationIds});
     }
   }
   return {sections,citations:records.filter(record => used.has(record.id)).map(stripToCitation)};

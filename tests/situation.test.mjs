@@ -34,7 +34,7 @@ function harness() {
     model:() => async () => { calls++; return makeSections(); },
     permit:async ({limits}) => { assert.deepEqual(limits,{global:25,visitor:4}); permits++; return true; },
   };
-  return {dependencies,counts:()=>[calls,permits],advance:()=>{time+=6*3600000;},revise:()=>{current={...current,title:"County cancels the hearing"};}};
+  return {dependencies,counts:()=>[calls,permits],advance:(minutes=360)=>{time+=minutes*60000;},revise:()=>{current={...current,title:"County cancels the hearing"};}};
 }
 const req = (query="") => new Request("https://example.org/api/situation"+query);
 
@@ -139,4 +139,39 @@ test("a failed provider attempt cannot hide a subsequent critical signal in the 
   assert.equal(response.mode,"sources");
   assert.match(response.sections.whatHappened[0].text,/Seismic advisory revised/);
   assert.deepEqual(response.citations.map(row=>row.eventId),["new-alert"]);
+});
+
+test("compact model selections render only the reporting and assessments attached to those source passages", async () => {
+  const h=harness();
+  const material = await briefingMaterial(h.dependencies.search,"Maui",t);
+  const picked = {whatHappened:["1.1"],whyItMatters:["1.2"],whatToMonitor:["1.1"]};
+  const validated = validateSituation(picked,material.records);
+  assert.equal(validated.sections.whatHappened[0].text,event.title);
+  assert.equal(validated.sections.whyItMatters[0].text,event.intelligence.why);
+  assert.equal(validated.sections.whatToMonitor[0].text,event.intelligence.monitor);
+  assert.equal(validated.citations[0].url,event.url);
+  assert.equal(validateSituation({...picked,whyItMatters:["1.99"]},material.records),null);
+});
+test("a previous-format slot with no saved success permits one recovery, including simultaneous cron invocations", async () => {
+  const h=harness(), d=h.dependencies;
+  await d.storage().setJSON("v1/maui/scheduled-slot",{slot:Math.floor(t/(6*3600000))});
+  const result=await Promise.all([generateSituation(context,d),generateSituation(context,d)]);
+  assert.equal(result.filter(item=>item.status==="published").length,1);
+  assert.deepEqual(h.counts(),[1,1]);
+  h.advance(5);
+  assert.equal((await generateSituation(context,d)).status,"already-checked");
+});
+test("a transient model failure allows exactly one separately budgeted retry on a later tick", async () => {
+  const h=harness(), d=h.dependencies;
+  let calls=0;
+  const failed={...d,model:()=>async()=>{calls++;throw Object.assign(new Error("private content"),{status:503});}};
+  const first=await generateSituation(context,failed);
+  assert.equal(first.status,"provider-failure"); assert.equal(first.httpStatus,503);
+  assert.doesNotMatch(JSON.stringify(first),/private content/);
+  const repeated=await generateSituation(context,failed); assert.equal(repeated.status,"already-checked");
+  h.advance(5);
+  const second=await generateSituation(context,failed); assert.equal(second.attempt,2);
+  h.advance(5);
+  assert.equal((await generateSituation(context,failed)).status,"already-checked");
+  assert.equal(calls,2); assert.equal(h.counts()[1],2);
 });

@@ -19,7 +19,9 @@ export function reportRecord(event) {
   return {
     eventId: event.id, title: clean(event.title, 250), url: publicUrl(event.url),
     source: clean(event.source, 100), publishedAt: event.publishedAt, updatedAt: event.updatedAt,
-    location: clean(event.location, 100), scope: event.scope || "global", status: event.status, category: clean(event.category, 60),
+    location: clean(event.location, 100),
+    sourceArea:event.source === "National Weather Service" && event.category === "Weather" ? clean(event.location,300) : null,
+    scope: event.scope || "global", status: event.status, category: clean(event.category, 60),
     excerpt: clean(event.summary, 800), kind: event.editorialType || "publisher record",
     expiresAt: event.expiresAt || null,
     timeline: (event.timeline || []).slice(-3).map(item => ({ at: item.at, text: clean(item.text, 180) })),

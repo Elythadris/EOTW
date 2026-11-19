@@ -72,7 +72,11 @@ export async function retrieve(query, search) {
   }
   const { scope, view, category } = query.filters;
   const lookup = { location: query.location, scope };
-  const compareSignals = Boolean(query.storyId) && (view === "signals" || /\b(correlat\w*|overlaps?|related signals|connect(?:ed|ions?))\b/i.test(query.question));
+  const compareSignals = Boolean(query.storyId) && /\b(compar\w*|correlat\w*|overlaps?|related|connect(?:ed|ions?)|elsewhere|wider|broader|other (?:events|stories|warnings|signals|reports)|in (?:the )?context of)\b/i.test(query.question);
+  if (query.storyId && !compareSignals) {
+    const selected = await search({id:query.storyId,limit:1,location:query.location});
+    return analystRecords(selected.events.filter(event => event.id === query.storyId && sourceCandidate(event)));
+  }
   const searches = query.storyId && !terms.length ? [] : [search({ ...lookup, view, limit: 72 })];
   if (compareSignals && (!searches.length || view !== "signals")) searches.push(search({ ...lookup, view:"signals", limit:100 }));
   if (query.storyId)
