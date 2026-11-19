@@ -4,7 +4,7 @@ Publish an original report, investigation, prediction or correction through GitH
 
 1. Add the full article as Markdown under `editorial/reports/<slug>.md`. Include its headline, byline, publication time, reporting, evidence, and any material uncertainty. Readers can open this document from the EOTW story page.
 2. Add its metadata to the array in `editorial/records.json`. Commit the article and its entry together. Keep the original slug and publication timestamp for all future editions.
-3. Confirm the source health panel reports a successful EOTW editorial check. Search the archive by headline or choose its editorial type. A commit containing `[skip netlify]` can avoid an unnecessary site build when the only changes are editorial content.
+3. Confirm the source health panel reports a successful EOTW editorial check. Search the archive by headline or choose its editorial type. Netlify skips the site build when only the editorial directory changes.
 
 An empty registry represents an edition with no published records. Each update must remain valid as a whole. A broken record produces a source-health error and the last successful edition remains readable. The registry accepts at most 100 records and 400 KB. Older items that leave the registry remain in the historical archive.
 

@@ -6,7 +6,7 @@ const result = await Promise.all(
       return { id: def.id, status: "disabled", reason: def.disabled };
     try {
       const batch = await fetchProvider(def);
-      return { id: def.id, status: "ok", normalized: batch.events.length };
+      return { id: def.id, status: "ok", normalized: batch.events?.length || 0, detail: batch.detail || "" };
     } catch (error) {
       return {
         id: def.id,

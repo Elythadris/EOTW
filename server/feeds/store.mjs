@@ -89,7 +89,11 @@ export async function collect({store=repository(),now=Date.now(),defs=definition
     }
     successes++;
     const batch=attempt.value;
-    Object.assign(entry,{status:"ok",lastSuccess:stamp(now),failures:0,detail:""});
+    Object.assign(entry,{status:"ok",lastSuccess:stamp(now),failures:0,detail:batch.detail || ""});
+    if (def.id === "gdelt") {
+      entry.primaryRetryAfter=batch.primaryRetryAfter || 0;
+      if (Object.hasOwn(batch,"galEtag")) entry.galEtag=batch.galEtag;
+    }
     if (batch.unchanged) continue;
     entry.etag=batch.etag || null;
     entry.modified=batch.modified || null;

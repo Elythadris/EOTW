@@ -1,3 +1,4 @@
+import { galArticles, galBytes, galUrl } from "./gal.mjs";
 import { editorialRows } from "./editorial.mjs";
 import { XMLParser } from "fast-xml-parser";
 import { date, plain, record } from "./model.mjs";
@@ -550,19 +551,46 @@ export async function fetchProvider(
         .map((v) => record(v, now))
         .filter(Boolean),
     };
-  const response = await request(
-    provider.url,
-    { headers, redirect: provider.headers ? "error" : "follow" },
-    fetcher,
-  );
-  if (response.status === 304) return { unchanged: true };
-  const raw = provider.parse(await body(response, provider.maxBytes), now);
-  const events = raw.map((item) => record(item, now)).filter(Boolean);
-  if (raw.length && !events.length)
-    throw new Error("No valid records in upstream response");
-  return {
-    events,
-    etag: response.headers.get("etag"),
-    modified: response.headers.get("last-modified"),
+  const fetchPrimary = async () => {
+    const response = await request(
+      provider.url,
+      { headers, redirect: provider.headers ? "error" : "follow" },
+      fetcher,
+    );
+    if (response.status === 304) return { unchanged: true };
+    const raw = provider.parse(await body(response, provider.maxBytes), now);
+    const events = raw.map((item) => record(item, now)).filter(Boolean);
+    if (raw.length && !events.length) throw new Error("No valid records in upstream response");
+    return { events, etag: response.headers.get("etag"), modified: response.headers.get("last-modified") };
   };
+  if (provider.id !== "gdelt") return fetchPrimary();
+  let primaryRetryAfter = state.primaryRetryAfter || 0;
+  if (primaryRetryAfter <= now) {
+    try {
+      return { ...await fetchPrimary(), primaryRetryAfter: 0 };
+    } catch (error) {
+      primaryRetryAfter = error?.retryAfter || 0;
+    }
+  }
+  const rangeHeaders = { "User-Agent": agent, Range: "bytes=0-" + (galBytes - 1) };
+  if (state.galEtag) rangeHeaders["If-None-Match"] = state.galEtag;
+  try {
+    const response = await request(galUrl, { headers: rangeHeaders }, fetcher);
+    const detail = "GDELT DOC unavailable. Serving a topical sample from the GDELT Article List RSS feed.";
+    if (response.status === 304) return { unchanged: true, primaryRetryAfter, detail };
+    const length = Number(response.headers.get("content-length"));
+    const bounded = response.status === 206
+      ? /^bytes 0-\d+\/\d+$/.test(response.headers.get("content-range") || "")
+      : response.status === 200 && length > 0 && length <= galBytes;
+    if (!bounded) {
+      await response.body?.cancel();
+      throw new Error("GDELT Article List did not honor the bounded request");
+    }
+    const events = galArticles(await body(response, galBytes)).map((item) => record(item, now)).filter(Boolean);
+    return { events, primaryRetryAfter, galEtag: response.headers.get("etag"), detail,
+      etag: state.etag || null, modified: state.modified || null };
+  } catch (error) {
+    if (primaryRetryAfter > 0) error.retryAfter = Math.max(error.retryAfter || 0, primaryRetryAfter);
+    throw error;
+  }
 }
