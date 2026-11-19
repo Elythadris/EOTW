@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { record, combine, DAY, HOUR } from "../server/feeds/model.mjs";
+import { record, combine, scopeFor, DAY, HOUR } from "../server/feeds/model.mjs";
 import { usgs,nws,rss } from "../server/feeds/providers.mjs";
 import { annotate,incidentKey,nwsKeys,observe,linkCorrection,priorWarningAreas,observeExpansion } from "../server/feeds/detection.mjs";
 import { signalDesk,retainEpisodeChanges } from "../server/feeds/signal-desk.mjs";
@@ -161,4 +161,15 @@ test("NWS area expansion is a new official zone in a previously observed family,
   assert.equal(observeExpansion(area,new Map(),iso(now-5*MIN),now,true).observations.changes.length,0);
   assert.equal(observeExpansion(area,known,iso(now-5*MIN),now,false).observations.changes.length,0);
   assert.equal(expand(next("EXA","HIZ002",now-30*MIN)).observations.changes.length,0);
+});
+
+test("Maui uses the official SAME county code without assigning unspecified subareas to a custom town",()=>{
+  const origin=nwsKeys({sent:iso(now),geocode:{SAME:["015009","015009","15009","015009x",15009],UGC:[]}});
+  assert.deepEqual(origin.counties,["015009"]);
+  const alert=cap({origin:{...origin,event:"Flash Flood Warning"},location:"An upstream forecast zone",title:"Flash Flood Warning issued by NWS Honolulu"});
+  assert.equal(scopeFor(alert,"Maui, Hawaiʻi"),"local");
+  assert.equal(scopeFor(alert,"Maui County"),"local");
+  assert.equal(scopeFor(alert,"Kahului"),"us");
+  const unknown=signalDesk([],{lastSignalScan:iso(now)},["maui-mema","nws-hi","hiema"].map(ok),now,"Kahului");
+  assert.equal(unknown.intelligence.regions.find(r=>r.scope==="local").level,"unknown");
 });

@@ -26,7 +26,7 @@ function relatedReports(signals) {
 }
 function region(scope,events,health,lastScan,now,location) {
   const affected=events.filter(e=>e.scope===scope);
-  const isMaui=/^(maui(?: county)?|kahului|lahaina|kihei|wailuku|hana|kula|lanai|molokai)(?:,|$)/.test(fold(location).trim());
+  const isMaui=/^maui(?: county)?(?:,|$)/.test(fold(location).trim());
   const serviceOK=id=>health.some(h=>h.id===id && h.status==="ok");
   const adequate=scope==="local" ? isMaui && serviceOK("nws-hi") && serviceOK("maui-mema")
     : scope==="us" ? serviceOK("nws-us") && serviceOK("usgs") && ["justice","federal","conversation"].some(serviceOK)

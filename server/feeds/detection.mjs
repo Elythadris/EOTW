@@ -36,7 +36,10 @@ function editorialConfidence(e) {
 }
 export function nwsKeys(p) {
   const year = String(p.sent || "").slice(0,4);
-  const zones = [...new Set(p.geocode?.UGC || [])].filter(s=>typeof s==="string").sort();
+  const codes=(values,pattern)=>Array.isArray(values) ? [...new Set(values.slice(0,256).filter(code=>typeof code==="string" && pattern.test(code)))].sort() : [];
+  const zones = codes(p.geocode?.UGC,/^[A-Z]{2}[CZ]\d{3}$/);
+  const counties = codes(p.geocode?.SAME,/^\d{6}$/);
+  const geography = counties.length ? {counties} : {};
   const tags = (p.parameters?.VTEC || []).map(line => {
     const parts = /^\/O\.[A-Z]{3}\.([A-Z0-9]{4})\.([A-Z]{2})\.([A-Z])\.(\d{4})\.(\d{2})/.exec(line);
     if (!parts || !/^\d{4}$/.test(year)) return null;
@@ -44,9 +47,9 @@ export function nwsKeys(p) {
     return [issueYear,...parts.slice(1,5)].join(".");
   }).filter(Boolean);
   const episode = [...new Set(tags)].sort().join("+");
-  if (!episode) return {};
+  if (!episode) return geography;
   const expansion = [...new Set((p.parameters?.VTEC || []).map(v=>/^\/O\.(EXA|EXB)\./.exec(v)?.[1]).filter(Boolean))];
-  return {episode:"nws:"+episode,series:zones.length ? "nws:"+episode+":"+hash(zones.join("|")) : null,
+  return {...geography,episode:"nws:"+episode,series:zones.length ? "nws:"+episode+":"+hash(zones.join("|")) : null,
     zones:zones.slice(0,180),areaAction:tags.length===1 && expansion.length===1 ? expansion[0] : null};
 }
 export function incidentKey(e) {

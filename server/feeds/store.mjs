@@ -74,7 +74,7 @@ export async function collect({store=repository(),now=Date.now(),defs=definition
   const due=defs.filter(def=>!def.disabled && (!state.providers[def.id] || (state.providers[def.id].nextDue || 0)<=now));
   const result=await Promise.allSettled(due.map(def=>{
     const old=sourceState(state,def.id);
-    const validators=(["nws-us","nws-hi","usgs","eonet"].includes(def.id) && old.signalSchema!==2) ? {...old,etag:null,modified:null} : old;
+    const validators=(["nws-us","nws-hi","usgs","eonet"].includes(def.id) && old.signalSchema!==3) ? {...old,etag:null,modified:null} : old;
     return load(def,validators,{now});
   }));
   const previousAreas=priorWarningAreas(state.events,now);
@@ -112,7 +112,7 @@ export async function collect({store=repository(),now=Date.now(),defs=definition
       if (Object.hasOwn(batch,"galEtag")) entry.galEtag=batch.galEtag;
     }
     const continuous=before.status==="ok" && now-Date.parse(before.lastSuccess)<=def.minutes*90000;
-    entry.signalSchema=2;
+    entry.signalSchema=3;
     const observed=[];
     if (batch.unchanged) {addPoll(state,def.id,now,observed,continuous);continue;}
     entry.etag=batch.etag || null;
