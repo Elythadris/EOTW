@@ -1,4 +1,4 @@
-import { DAY, fold, ranked } from "./model.mjs";
+import { DAY, fold, ranked, link } from "./model.mjs";
 import { annotate, incidentKey } from "./detection.mjs";
 import { buildHot24 } from "./hot24.mjs";
 import { anomaliesFor } from "./baseline.mjs";
@@ -6,8 +6,86 @@ import { anomaliesFor } from "./baseline.mjs";
 const warningFor = e => /\bwarning\b/i.test(e.origin?.event || e.title);
 const levels={watch:1,elevated:2,high:3};
 const fresh = (at,now,age) => { const time=Date.parse(at);return Number.isFinite(time) && time<=now && now-time<=age; };
-function relatedReports(signals) {
-  const groups=new Map(), result=[];
+// Canonicalise only identifiable documents. A shared newsroom, alert index or feed
+// cannot identify which report a publisher was citing.
+function documentKey(value) {
+  const clean = link(value);
+  if (!clean) return "";
+  const url = new URL(clean);
+  const hostname = url.hostname.replace(/^www\./,"");
+  if (!hostname.includes(".") || url.port || /^\d+(\.\d+){3}$/.test(hostname)) return "";
+  const path = url.pathname.replace(/\/+$/, "");
+  const leaf = path.slice(path.lastIndexOf("/") + 1);
+  const identity = [...url.searchParams].some(([key,v]) =>
+    /^(?:aid|id|articleid|eventid|docid|documentid|reportid|storyid|guid)$/i.test(key) && /^[\w.:-]{1,150}$/.test(v));
+  if (!identity) {
+    if (!leaf || /^(?:index|home|news|newsroom|press|(?:press|news|media)[-_](?:room|centre|center|releases?|statements?)|(?:all|active|public)[-_](?:notices?|alerts?|records?)|releases?|stories|docs?|documents?|announcements?|archive|alerts?|active|events?|notices?|updates?|reports?|search|feeds?|rss|atom|categories|media|publications?|latest)(?:\.[a-z0-9]+)?$/i.test(leaf)) return "";
+    if (/\.(?:rss|atom)$/i.test(leaf) || /^\/(?:tags?|topics?|category|authors?)\//i.test(path)) return "";
+    if (!/\d.*[a-z]|[a-z].*\d|[a-z]{2,}[-_][a-z0-9]{2,}|\.(pdf|html?)$/i.test(leaf) && !/^\d{5,}$/.test(leaf)) return "";
+  }
+  url.searchParams.sort();
+  return hostname + path + url.search;
+}
+function publisherHost(value) {
+  try { return new URL(value).hostname.replace(/^www\./,""); } catch { return ""; }
+}
+function reportReferences(event) {
+  const references = [
+    ...(event.origin?.references || []),
+    ...(event.evidence || []).map(item => item.url),
+    ...(event.counterevidence || []).map(item => item.url),
+    event.supersedes?.url,
+  ];
+  // Merged mirror URLs identify republishers. They are not citations from the story.
+  const owner = publisherHost(event.url);
+  const additionalDomains = new Set((event.observations?.publishers || []).filter(domain => domain !== owner));
+  const coverage = new Set((event.timeline || []).filter(t => t.text.startsWith("Additional coverage indexed from "))
+    .map(t => t.text.slice("Additional coverage indexed from ".length).replace(/\.$/, "")));
+  for (const item of event.sources || []) {
+    const host = publisherHost(item.url);
+    if (event.editorialType || host !== owner && !additionalDomains.has(host) && !coverage.has(item.name)) references.push(item.url);
+  }
+  const literal = (event.summary || "").match(/https?:\/\/[^\s<>"']+/gi) || [];
+  return [...new Set([...references, ...literal.map(url => url.replace(/[.,;)\]]+$/, ""))].slice(0, 48).map(documentKey).filter(Boolean))];
+}
+function directRelationships(signals, records, now) {
+  const leaders = new Map(signals.map(e => [incidentKey(e),e]));
+  const eligible = records.filter(e => !e.transient && !e.topicClaim && e.status !== "speculation" &&
+    (leaders.has(incidentKey(e)) || fresh(e.updatedAt,now,7*DAY)));
+  const byUrl = new Map();
+  for (const e of eligible) {
+    const key = documentKey(e.url);
+    if (!key) continue;
+    // Shared canonical URLs with conflicting incident identities are ambiguous.
+    if (!byUrl.has(key)) byUrl.set(key,e);
+    else if (byUrl.get(key) && incidentKey(byUrl.get(key)) !== incidentKey(e)) byUrl.set(key,null);
+  }
+  const found = new Map();
+  for (const source of eligible) {
+    for (const key of reportReferences(source)) {
+      const target = byUrl.get(key);
+      if (!target || incidentKey(target) === incidentKey(source) || fold(target.title) === fold(source.title)) continue;
+      const sourceLead = leaders.get(incidentKey(source)), targetLead = leaders.get(incidentKey(target));
+      if (!sourceLead && !targetLead) continue;
+      const a = sourceLead || source, b = targetLead || target;
+      const pair = [a.id,b.id].sort().join("|");
+      if (found.has(pair)) continue;
+      found.set(pair, {
+        eventIds:[a.id,b.id],
+        reason:source.source+" directly references the specific report from "+target.source+". The citation documents a reporting link. Establishing cause requires separate evidence.",
+        local:Number(a.scope === "local" || b.scope === "local"),
+        distinct:Number(a.category !== b.category),
+        at:source.updatedAt,
+      });
+    }
+  }
+  return [...found.values()].sort((a,b) => b.local-a.local || b.distinct-a.distinct || b.at.localeCompare(a.at) || a.eventIds[0].localeCompare(b.eventIds[0]))
+    .slice(0,12).map(({eventIds,reason}) => ({eventIds,reason}));
+}
+function relatedReports(signals,records,now) {
+  const groups=new Map(), result=directRelationships(signals,records,now);
+  const linked = new Set(result.map(r => [...r.eventIds].sort().join("|")));
+  if (result.length >= 12) return result;
   for (const event of signals) {
     const location=fold(event.location).trim();
     if (location.length<3 || location.length>90 || /(?:united states|worldwide|global|unknown)/i.test(location) ||
@@ -19,9 +97,9 @@ function relatedReports(signals) {
   for (const group of groups.values()) {
     const sorted=group.sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt));
     const first=sorted[0];
-    const domain=e=>{try{return new URL(e.url).hostname.replace(/^www\./,"");}catch{return "";}};
+    const domain=e=>publisherHost(e.url);
     const found=sorted.slice(1).find(e=>domain(e)!==domain(first) && incidentKey(e)!==incidentKey(first) && Math.abs(Date.parse(e.updatedAt)-Date.parse(first.updatedAt))<=12*3600000);
-    if (found) result.push({eventIds:[first.id,found.id],reason:"Two publisher domains report "+first.intelligence.category.toLowerCase()+" and name "+first.location+" within 12 hours. Shared timing and geography alone do not establish a connection."});
+    if (found && !linked.has([first.id,found.id].sort().join("|"))) result.push({eventIds:[first.id,found.id],reason:"Two publisher domains report "+first.intelligence.category.toLowerCase()+" and name "+first.location+" within 12 hours. Shared timing and geography alone do not establish a connection."});
   }
   return result.slice(0,12);
 }
@@ -111,5 +189,5 @@ export function signalDesk(live,state,health,now,location,retired=[]) {
   const canonical=new Map(events.map(e=>[incidentKey(e),e.id]));
   const escalations=[...latestByIncident].filter(([id])=>memberSet.has(id)).map(([id,c])=>({...c,eventId:canonical.get(id)})).sort((a,b)=>b.at.localeCompare(a.at));
   return {events,hotEvents,intelligence:{scanned:candidates.length,alerts:events.length,activeWarnings:events.filter(e=>e.source==="National Weather Service" && warningFor(e)).length,lastScan,regions:["local","us","global"].map(scope=>region(scope,events,health,lastScan,now,location)),
-    escalations,hotIds:hotEvents.filter(e=>!e.transient).map(e=>e.id),related:relatedReports(events),...anomaliesFor(state,now,health)}};
+    escalations,hotIds:hotEvents.filter(e=>!e.transient).map(e=>e.id),related:relatedReports(events,candidates.filter(e=>!known.has(e.id) || recentlyChecked.has(e.id)),now),...anomaliesFor(state,now,health)}};
 }

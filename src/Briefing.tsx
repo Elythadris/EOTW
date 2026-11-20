@@ -28,6 +28,7 @@ import { ClaimReview, OpsPanel, StoryLink, StoryReview } from "./Operations";
 import {
   dateTime,
   inHotWindow,
+  hotReason,
   relative,
   staleScan,
   sourceURL,
@@ -714,7 +715,7 @@ export default function Briefing({
                 <span>{String(i + 1).padStart(2, "0")}</span>
                 <div>
                   <StoryLink event={e} open={open} />
-                  <small>{e.rankReasons?.[0] || e.source}</small>
+                  <small>{hotReason(e) || e.source}</small>
                 </div>
               </div>
             ))

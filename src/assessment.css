@@ -27,3 +27,5 @@
 .investigation-body .scan-receipts li { margin-top:10px; }
 .scan-receipts strong { color:var(--ink); }
 .scan-receipts a { color:var(--sea); text-decoration:underline; }
+
+.hypothesis-origin { display:block; color:var(--sea); font:500 .69rem/1.6 var(--mono); }

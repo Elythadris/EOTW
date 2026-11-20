@@ -236,3 +236,7 @@ export function inHotWindow(event: IntelEvent, now: number) {
   const at = Date.parse(event.hotAt || event.publishedAt);
   return Number.isFinite(at) && at <= now && now - at < 24 * 60 * 60_000;
 }
+
+export function hotReason(event: IntelEvent) {
+  return event.rankReasons.find(reason => reason !== "Published within the last 24 hours.") || event.rankReasons[0];
+}

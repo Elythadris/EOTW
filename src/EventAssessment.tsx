@@ -5,7 +5,7 @@ import "./assessment.css";
 
 type Point = { text: string; citationIds: string[] };
 type Citation = { id: string; title: string; source: string; url: string };
-type Explanation = { label: string; explanation: string; support: Point[]; against: Point[]; test: string };
+type Explanation = { origin?: "model" | "research"; inferenceCitationIds?: string[]; label: string; explanation: string; support: Point[]; against: Point[]; test: string };
 type Assessment = {
   eventId: string;
   mode: "ai" | "sources";
@@ -51,7 +51,10 @@ function Analysis({ report }: { report: Assessment }) {
     <section><h4>{report.mode === "ai" ? "Hypotheses to investigate" : "Explanations to investigate"}</h4>
       {report.hypotheses.length ? report.hypotheses.map((item, index) => (
         <div className="assessment-hypothesis" key={index}>
-          <h5>{item.label}</h5><p>{item.explanation}</p>
+          <strong className="hypothesis-origin">{item.origin === "model" ? "AI hypothesis" : "Research hypothesis"}</strong>
+          <h5>{item.label}</h5>
+          {item.origin === "model" && item.inferenceCitationIds?.length
+            ? points([{text:item.explanation,citationIds:item.inferenceCitationIds}]) : <p>{item.explanation}</p>}
           <div><strong>Supporting evidence</strong>{item.support.length ? points(item.support) : <p>No supporting evidence is indexed for this explanation.</p>}</div>
           <div><strong>Contrary evidence</strong>{item.against.length ? points(item.against) : <p>No contrary evidence is indexed for this explanation.</p>}</div>
           {item.test && <div><strong>What would help resolve it</strong><p>{item.test}</p></div>}

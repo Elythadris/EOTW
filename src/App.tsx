@@ -212,6 +212,7 @@ export default function App() {
   const feed = useFeed(
     {
       view: requestView,
+      ...(page === "health" ? {limit:"1"} : {}),
       scope: coverage,
       ...(page === "archive" && archiveType !== "all"
         ? { type: archiveType }

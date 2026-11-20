@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 import EventAssessment from "./EventAssessment";
 import { EvidenceComparison, EvidenceCounts, PriorityStamp, SaveButton, ScoreBreakdown, Status } from "./components";
-import { dateTime, relative, sourceURL, type IntelEvent } from "./types";
+import { dateTime, hotReason, relative, sourceURL, type IntelEvent } from "./types";
 
 export function OpsPanel({
   title,
@@ -100,6 +100,7 @@ export function StoryReview({
   location: string;
 }) {
   const assessment = event.intelligence;
+  const rationale = assessment?.why || (rank !== undefined && hotReason(event));
   const source = sourceURL(event.url);
   return <article className={"assessment-card sv-priority-card sv-tone-" + (assessment?.level || "neutral")}>
     <div className="sv-card-bar">
@@ -119,7 +120,7 @@ export function StoryReview({
       {!!event.bulletinCount && event.bulletinCount > 1 && <span className="sv-group">{event.bulletinCount} area bulletins</span>}
       {rank !== undefined && (event.topicClaim || event.status === "speculation") && <span>Narrative tracking · <Status value={event.status}/></span>}
     </div>
-    {assessment?.why && <p className="sv-card-why">{assessment.why}</p>}
+    {rationale && <p className="sv-card-why">{rationale}</p>}
     <details className="assessment-details sv-expand">
       <summary><span>Assessment &amp; sources</span><ChevronDown size={15} aria-hidden="true"/></summary>
       <div className="sv-card-body">

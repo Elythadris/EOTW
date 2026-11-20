@@ -177,7 +177,7 @@ test("the expandable assessment follows citations and refreshes a revised story 
       notice: revised ? "Review of the updated bulletin." : "The model selected explanations to examine.",
       facts: [{text: "The agency published the advisory.", citationIds:["1"]}], allegations: [],
       significance: [], implications: [], unknowns:["The duration is unknown."], watch: [],
-      hypotheses:[{ label:"Reported harbor conditions", explanation:"Check whether conditions changed.",
+      hypotheses:[{ origin:revised ? "research" : "model", inferenceCitationIds:revised ? [] : ["1"], label:"Reported harbor conditions", explanation:"Check whether conditions changed.",
         support:[{text:"The notice includes an observation.",citationIds:["1"]}], against:[], test:"Read the next bulletin." }],
       citations:[{id:"1",title:"Publisher advisory",source:report.source,url:report.url}],
     }});
@@ -188,11 +188,13 @@ test("the expandable assessment follows citations and refreshes a revised story 
   expect(requests).toHaveLength(0);
   await disclosure.locator("summary").click();
   await expect(disclosure.getByText("AI-assisted assessment", {exact:true})).toBeVisible();
+  await expect(disclosure.getByText("AI hypothesis", {exact:true})).toBeVisible();
   await expect(disclosure.getByText("No contrary evidence is indexed for this explanation.")).toBeVisible();
   await expect(disclosure.getByRole("link", {name:/Source 1, National Weather Service/}).first()).toHaveAttribute("href", report.url);
   records[0] = {...report, updatedAt:"2026-01-14T14:30:00Z"};
   await page.clock.fastForward(45_500);
   await expect(disclosure.getByText("Source-based assessment", {exact:true})).toBeVisible();
+  await expect(disclosure.getByText("Research hypothesis", {exact:true})).toBeVisible();
   await expect(disclosure.getByText("Review of the updated bulletin.")).toBeVisible();
   await expect(page).toHaveURL(new RegExp(report.id+"$"));
   expect(requests).toEqual([report.id, report.id]);
