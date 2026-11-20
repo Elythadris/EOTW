@@ -221,22 +221,28 @@ export function modelInput(material) {
     alternatives:material.options.map(({id,label,explanation,test,support,against})=>({
       id,label,explanation,test,canWrite:material.canWrite && writeableIdea.test(id) && support.length > 0,
       sourceTerms:language({label,explanation,test},support).sourceTerms,
+      ...(material.canWrite && writeableIdea.test(id) && support.length ? {candidateWords:
+        [...new Set(words([label,explanation,test].join(" ")))].filter(word=>word.length>3 && !grammar.has(word) && !sensitiveWords.test(word))} : {}),
       support:support.map(p=>({ref:p.ref,passage:p.text})),against:against.map(p=>({ref:p.ref,passage:p.text})),
     }))};
 }
 
 // The model proposes comparisons and may phrase a conventional conditional inference.
 // All factual text, source quotations, identifiers and URLs come from the current record.
-export function applyModelSelection(raw,material) {
-  if (!raw || !Array.isArray(raw.hypotheses) || raw.hypotheses.length < Math.min(2,material.options.length) || raw.hypotheses.length > 3) return null;
+export function applyModelSelection(raw,material,onInvalid = () => {}) {
+  const reject = reason => { onInvalid(reason); return null; };
+  if (["comparison-shape","candidate-id","selection-flag"].includes(raw?.formatProblem)) return reject(raw.formatProblem);
+  if (!Array.isArray(raw?.hypotheses)) return reject("comparison-shape");
+  if (!raw.hypotheses.length || raw.hypotheses.length > 3) return reject("selection-count");
   const seen = new Set();
   const hypotheses = [];
   for (const choice of raw.hypotheses) {
     const option = material.options.find(o=>o.id === choice?.id);
-    if (!option || seen.has(choice.id)) return null;
+    if (!option) return reject("candidate-id");
+    if (seen.has(choice.id)) return reject("duplicate-candidate");
     for (const field of ["support","against"]) {
-      if (!Array.isArray(choice[field]) || choice[field].length > 2 || new Set(choice[field]).size !== choice[field].length ||
-        choice[field].some(ref=>!option[field].some(p=>p.ref === ref))) return null;
+      if (!Array.isArray(choice[field]) || choice[field].length > 2 || new Set(choice[field]).size !== choice[field].length) return reject(field + "-shape");
+      if (choice[field].some(ref=>!option[field].some(p=>p.ref === ref))) return reject(field + "-reference");
     }
     seen.add(choice.id);
     // Keep every known contrary finding even if the model leaves it out.
@@ -244,8 +250,12 @@ export function applyModelSelection(raw,material) {
     const inference = verifiedInference(choice.inference,option,choice.support,material);
     hypotheses.push(inference ? {...hypothesis,...inference} : hypothesis);
   }
+  if (hypotheses.length === 1 && material.options.length > 1) {
+    const other = material.options.find(o=>!seen.has(o.id));
+    hypotheses.push(selectedOption(other,other.support.map(p=>p.ref),other.against.map(p=>p.ref)));
+  }
   const wrote = hypotheses.some(h=>h.origin === "model");
   return {...material.base,mode:"ai",notice:wrote
     ? "AI hypotheses are conditional interpretations of the cited passages. Research hypotheses use checked alternatives. Neither is a verified finding."
-    : "AI-assisted comparison. The model selected research hypotheses and source passages. The explanations shown use checked alternatives.",hypotheses};
+    : "AI-assisted comparison of checked research alternatives. Relevant source passages and a competing explanation are shown where available.",hypotheses};
 }

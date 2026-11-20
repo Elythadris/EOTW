@@ -1,5 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { assessmentResponseFormat, readAssessmentChoices } from "../server/assistant/assessment-request.mjs";
 import { assessmentHandler } from "../server/assistant/assessment.mjs";
 import { assessmentMaterial, applyModelSelection, modelInput, sourceAssessment } from "../server/assistant/assessment-model.mjs";
 
@@ -192,4 +193,44 @@ test("forecast text supports the forecast alternative without becoming evidence 
   const selection=expectedSelection(input);
   selection.hypotheses.find(h=>h.id==="water-forecast").inference="If heavy rainfall redevelops, river levels could rise further.";
   assert.equal(applyModelSelection(selection,material).hypotheses.find(h=>h.label==="Additional forecast rainfall").origin,"model");
+});
+test("the provider schema binds each real candidate to its own available passage refs",()=>{
+  const material=assessmentMaterial(event);
+  const input=modelInput(material);
+  const fields=assessmentResponseFormat(input.alternatives).json_schema.schema.properties.comparisons;
+  assert.deepEqual(fields.required,input.alternatives.map(o=>o.id));
+  for (const opt of input.alternatives) {
+    const schema=fields.properties[opt.id].properties;
+    assert.equal(schema.against.maxItems,0);
+    assert.deepEqual(schema.support.items.enum,opt.support.map(p=>p.ref));
+  }
+  const selected=input.alternatives[0];
+  const raw={comparisons:{[selected.id]:{selected:true,support:[selected.support[0].ref],against:[],inference:""}}};
+  const output=applyModelSelection(readAssessmentChoices(raw,input.alternatives),material);
+  assert.equal(output.mode,"ai");
+  assert.equal(output.hypotheses.length,2);
+  assert.ok(output.hypotheses.some(h=>h.support.length));
+  raw.comparisons[selected.id].support=["9.99"];
+  let invalid;
+  assert.equal(applyModelSelection(readAssessmentChoices(raw,input.alternatives),material,r=>{invalid=r;}),null);
+  assert.equal(invalid,"support-reference");
+});
+test("cached cooldowns retain a safe validation reason or provider status and give the reader the corresponding notice",async()=>{
+  for (const [kind,model,expected,notice] of [
+    ["selection",()=>async()=>({hypotheses:[{id:"private story text from upstream"}]}),{kind:"selection",reason:"candidate-id"},/supported by these source passages/],
+    ["provider",()=>async()=>{const error=new Error("private upstream account text");error.status=429;throw error;},{kind:"provider",category:"provider-http",httpStatus:429},/provider could not complete/],
+  ]) {
+    const h=setup();
+    const handler=assessmentHandler({...h.dependencies,model});
+    for (let i=0;i<2;i++) {
+      const body=await (await handler(req(),ctx)).json();
+      assert.equal(body.mode,"sources");
+      assert.match(body.notice,notice);
+    }
+    const saved=[...h.rows.values()][0].data;
+    assert.equal(saved.state,"cooldown");
+    assert.deepEqual(saved.diagnostic,expected);
+    assert.doesNotMatch(JSON.stringify(saved.diagnostic),/private/);
+    assert.ok(kind);
+  }
 });

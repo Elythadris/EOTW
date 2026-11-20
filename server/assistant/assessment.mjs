@@ -11,6 +11,12 @@ const openStore = () => getStore({name:"eotw-event-assessments-v1",consistency:"
 const deps = {search:searchEvents,storage:openStore,model:provider,permit:reserve,env:setting,clock:Date.now};
 const minute = 60000;
 
+function unavailableNotice(diagnostic) {
+  return diagnostic?.kind === "provider"
+    ? "Source-based assessment. The AI provider could not complete this comparison. The source findings and research alternatives are available below."
+    : "Source-based assessment. The AI response did not produce a comparison supported by these source passages.";
+}
+
 async function compare(material, context, {storage,model,permit,env,clock}) {
   const current = () => sourceAssessment(material);
   if (!material.modelEligible || context?.deploy?.context !== "production") return current();
@@ -28,7 +34,10 @@ async function compare(material, context, {storage,model,permit,env,clock}) {
     const checked = applyModelSelection(entry.result,material);
     if (checked) return checked;
   }
-  if (entry?.until > now && (same || entry.state === "running")) return current();
+  if (entry?.until > now && (same || entry.state === "running")) {
+    return same && entry.state === "cooldown" && entry.diagnostic
+      ? sourceAssessment(material,unavailableNotice(entry.diagnostic)) : current();
+  }
   const lock = await store.setJSON(key,{fingerprint:material.fingerprint,state:"running",until:now+minute},
     previous ? {onlyIfMatch:previous.etag} : {onlyIfNew:true});
   if (!lock.modified || !lock.etag) return current();
@@ -39,24 +48,29 @@ async function compare(material, context, {storage,model,permit,env,clock}) {
     await finish({state:"idle",until:0});
     return sourceAssessment(material,"Source-based assessment. The current AI allowance is unavailable. Alternatives below are research questions.");
   }
+  let result;
+  let diagnostic;
   try {
-    const result = await modelCall(modelInput(material),[]);
-    const checked = applyModelSelection(result,material);
+    result = await modelCall(modelInput(material),[]);
+  } catch (error) {
+    diagnostic = {kind:"provider",...providerProblem(error)};
+  }
+  if (!diagnostic) {
+    const checked = applyModelSelection(result,material,reason=>{diagnostic={kind:"selection",reason};});
     if (checked) {
-      // Persist validated selectors and any validated conditional sentence. A model cannot inject additional fields
-      // into the cache, citations, public facts, or the language of an allegation.
       const compact = {hypotheses:result.hypotheses.map(({id,support,against},i)=>({id,support,against,
         ...(checked.hypotheses[i].origin === "model" ? {inference:checked.hypotheses[i].explanation} : {}),
       }))};
-      await finish({state:"ready",result:compact});
+      try { await finish({state:"ready",result:compact}); }
+      catch { console.warn("EOTW assessment cache write unavailable"); }
       return checked;
     }
-    console.warn("EOTW assessment rejected ungrounded selection");
-  } catch (error) {
-    console.warn("EOTW assessment provider",providerProblem(error));
   }
-  await finish({state:"cooldown",until:now+5*minute});
-  return sourceAssessment(material,"Source-based assessment. A validated AI comparison is unavailable for this revision.");
+  // Only closed diagnostic categories, optional HTTP status, and schema reason
+  // enter reporting. Never retain prompts, rejected output, or raw upstream errors.
+  console.warn("EOTW assessment outcome",JSON.stringify(diagnostic));
+  await finish({state:"cooldown",until:now+5*minute,diagnostic});
+  return sourceAssessment(material,unavailableNotice(diagnostic));
 }
 
 export function assessmentHandler(overrides = {}) {
