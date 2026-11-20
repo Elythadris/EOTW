@@ -181,3 +181,15 @@ test("model-authored conventional inference is conditional, source-bound and ind
   raw.hypotheses[0].support=[];
   assert.equal(applyModelSelection(raw,material).hypotheses[0].origin,"research");
 });
+
+test("forecast text supports the forecast alternative without becoming evidence of recorded runoff",()=>{
+  const report={...event,summary:"Heavy rainfall is expected to redevelop. Expected rainfall will raise river levels on the Little Wekiva River."};
+  const material=assessmentMaterial(report);
+  const input=modelInput(material);
+  const runoff=input.alternatives.find(o=>o.id==="water-runoff");
+  const forecast=input.alternatives.find(o=>o.id==="water-forecast");
+  assert.equal(runoff.support.length,0);assert.equal(forecast.support.length,2);
+  const selection=expectedSelection(input);
+  selection.hypotheses.find(h=>h.id==="water-forecast").inference="If heavy rainfall redevelops, river levels could rise further.";
+  assert.equal(applyModelSelection(selection,material).hypotheses.find(h=>h.label==="Additional forecast rainfall").origin,"model");
+});

@@ -69,6 +69,8 @@ function bearing(passage, proposal, event) {
   if (!canSupport(passage,event)) return null;
   if (matched.some(clause=>absenceOnly.test(clause) || possibilityOnly.test(clause))) return null;
   const valences = matched.map(clause => {
+    if (proposal.id === "water-runoff" && /\b(?:expected|forecast|predicted|will)\b/i.test(clause) &&
+      !/\b(?:already|recorded|observed|has (?:brought|raised|fallen)|fell|measured|recent rainfall)\b/i.test(clause)) return null;
     const match = proposal.clues.exec(clause);
     const before = clause.slice(0,match.index);
     const after = clause.slice(match.index + match[0].length);
@@ -175,12 +177,26 @@ export function sourceAssessment(material, notice) {
 const writeableIdea = /^(?:water-|quake-|hazard-|utility-|policy-implementation$|policy-announcement$|new-development$|reporting-revision$)/;
 const grammar = new Set(("a an the this that these those if as at for by from of in into on to with without under over after before until during between and or while " +
   "is are was were has have had be been being it its still could may might can would remain remains continue continues continuing persist persists keep keeps become becomes " +
-  "then further later earlier local next current reported conditions change changes changing longer shorter rise rises rising move moves moving shift shifts " +
+  "then further later earlier already local next current reported conditions change changes changing longer shorter rise rises rising move moves moving shift shifts " +
   "suggest suggests reflect reflects consistent lead leads result results because where when which more less").split(/\s+/));
 const sensitiveWords = /\b(?:arms?|actor|agent|armed|army|soldier|police|suspect|person|persons|terror\w*|militar\w*|missile|weapon\w*|bomb\w*|attack\w*|covert|secret|sabota\w*|intelligence|deliberate\w*|intentional\w*|blame\w*|attribut\w*|perpetrat\w*|exploit\w*|malware|ransomware|intrusion|payload|target\w*|intrud\w*|bypass\w*|entry point|weakness|disable\w*|vulnerab\w*|evad\w*|chemical|biological|pathogen|casualt\w*|killed|murder\w*|culprit|criminal|perpetrator|suspicious|surveil\w*|lies?|lied|guilty|proof|proves?|certainly|certain|guarantee\w*|always|never|authoriz\w*|must|should|shall|step|command|execute|engineer\w*|triple\w*|doubl\w*|half|percent|zero|one|two|three|four|five|six|seven|eight|nine|ten|hundred|thousand|million)\b/i;
 const words = text => String(text || "").toLowerCase().match(/[a-z]+/g) || [];
 const stem = word => word.length > 5 ? word.replace(/ies$/,"y").replace(/(?:ing|ed|s)$/,"") : word;
 const stems = text => new Set(words(text).map(stem));
+
+// Common descriptors in an official title, such as "Flood Stage" or "River",
+// are still valid geographic or physical terms when also used in ordinary prose.
+const commonTerms = new Set(("water heavy light rainfall rain river basin gauge levels level flood stage warning forecast winds wind coastal tide level seismic earthquake magnitude " +
+  "depth impact weather land fire storm measured updated service policy revision restrictions hearing county region monitoring recording preliminary").split(" "));
+function language(option,evidence) {
+  const passages = evidence.map(p=>p.text).join(" ");
+  const proper = new Set(evidence.flatMap(p=>p.text.match(/\b[A-Z][a-zA-Z]{2,}\b/g) || [])
+    .map(t=>t.toLowerCase()).filter(t=>!commonTerms.has(t) && !grammar.has(t)));
+  const sourceWords = stems(passages);
+  const allowed = new Set([...sourceWords,...stems([option.label,option.explanation,option.test].join(" ")),...[...grammar].map(stem)]);
+  const sourceTerms = [...new Set(words(passages).filter(t=>t.length >= 4 && !grammar.has(t) && !proper.has(t) && !sensitiveWords.test(t)))].slice(0,20);
+  return {proper,sourceWords,allowed,sourceTerms};
+}
 
 function verifiedInference(value, option, selectedRefs, material) {
   if (!material.canWrite || !writeableIdea.test(option.id) || typeof value !== "string" || !selectedRefs.length) return null;
@@ -192,13 +208,7 @@ function verifiedInference(value, option, selectedRefs, material) {
     !/^If [a-z][a-z '’-]{6,105}, [a-z][a-z '’-]{0,82}\b(?:could|may|might)\b[a-z '’-]{4,105}\.$/.test(line) ||
     sensitiveWords.test(line) || /\b(?:he|she|they|their|him|his|her|i|we|you|your)\b/.test(line)) return null;
   const evidence = option.support.filter(p => selectedRefs.includes(p.ref));
-  const passages = evidence.map(p=>p.text).join(" ");
-  const proper = new Set(evidence.flatMap(p => {
-    // Proper names in source text are not eligible as subjects of a generated hypothesis.
-    return p.text.slice(1).match(/\b[A-Z][a-zA-Z]{2,}\b/g) || [];
-  }).map(x=>x.toLowerCase()));
-  const sourceWords = stems(passages);
-  const allowed = new Set([...sourceWords,...stems([option.label,option.explanation,option.test].join(" ")),...[...grammar].map(stem)]);
+  const {proper,sourceWords,allowed} = language(option,evidence);
   const tokens = words(line);
   if (tokens.some(token=>proper.has(token) || !allowed.has(stem(token)))) return null;
   const grounded = new Set(tokens.filter(token=>token.length >= 4 && !grammar.has(token) && sourceWords.has(stem(token))).map(stem));
@@ -209,7 +219,8 @@ function verifiedInference(value, option, selectedRefs, material) {
 export function modelInput(material) {
   return {report:material.base.facts, allegations:material.base.allegations,
     alternatives:material.options.map(({id,label,explanation,test,support,against})=>({
-      id,label,explanation,test,canWrite:material.canWrite && writeableIdea.test(id),
+      id,label,explanation,test,canWrite:material.canWrite && writeableIdea.test(id) && support.length > 0,
+      sourceTerms:language({label,explanation,test},support).sourceTerms,
       support:support.map(p=>({ref:p.ref,passage:p.text})),against:against.map(p=>({ref:p.ref,passage:p.text})),
     }))};
 }
