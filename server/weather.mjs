@@ -23,7 +23,7 @@ export function findPlaces(term) {
   const text=String(term||"").trim().slice(0,100);
   const pair=/^(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)$/.exec(text);
   if(pair){const p=point(pair[1],pair[2]);return p?[{...p,label:p.latitude+"°, "+p.longitude+"°"}]:[];}
-  let query=fold(text);
+  let query=fold(text).replace(/\b(?:usa|us)\b/g,"united states").replace(/\bhi\b/g,"hawaii").replace(/\buk\b/g,"united kingdom");
   if(!query)return [];
   if(["maui","maui county","maui hawaii","maui county hawaii"].includes(query))query="wailuku";
   const words=query.split(" ");

@@ -20,12 +20,8 @@ type Props = {
 export default function WorldDesk({events,focusScope,scanAt,location,saved,onAsk,open,save,weather}: Props) {
   const [picked, setPicked] = useState("");
   const report = events.find(event => event.id === picked);
-  const region = report?.location || location;
+  const namedArea = report ? report.location : location;
   const source = report && sourceURL(report.url);
-  const naturalPoint = report && report.coordinatePrecision === "source-point" &&
-    ["Weather", "Earthquake", "Natural event"].includes(report.category) &&
-    Number.isFinite(report.lat) && Number.isFinite(report.lon);
-  const weatherPlace = naturalPoint ? `${report.lat}, ${report.lon}` : region;
   const tracking = !!report && saved.includes(report.id);
   return <div className="world-desk">
     <div className="panel full-map">
@@ -38,7 +34,7 @@ export default function WorldDesk({events,focusScope,scanAt,location,saved,onAsk
         <div className="world-record" aria-live="polite">
           <div className="world-meta"><Status value={report.status}/><span>{report.category}</span></div>
           <h3>{report.title}</h3>
-          <p>{region} · {report.source}</p>
+          <p>{namedArea && namedArea + " · "}{report.source}</p>
           <time dateTime={report.updatedAt}>{report.dateBasis === "discovery" ? "Indexed " : "Source time "}{dateTime(report.updatedAt)}</time>
           <p>{report.intelligence?.why || report.summary}</p>
           {report.mapNote && <p className="world-map-note">{report.mapNote}</p>}
@@ -60,7 +56,7 @@ export default function WorldDesk({events,focusScope,scanAt,location,saved,onAsk
         </div>
         <EventAssessment event={report} location={location}/>
       </> : <div className="world-empty"><p>Select a marker to inspect the report, compare sources, or track it in your watchlist.</p></div>}
-      <button className="world-weather" onClick={() => weather(weatherPlace)}><CloudRain size={15} aria-hidden="true"/> Weather for {region}</button>
+      <button className="world-weather" onClick={() => weather(region)}><CloudRain size={15} aria-hidden="true"/> Weather for {region}</button>
     </section>
   </div>;
 }

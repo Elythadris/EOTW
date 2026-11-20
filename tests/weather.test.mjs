@@ -6,6 +6,7 @@ const date="2026-11-20T10:00:00Z",now=Date.parse(date),place={latitude:20.891,lo
 
 test("world place selection accepts coordinates, Unicode city names, and rejects invalid points",()=>{
   assert.equal(findPlaces("Maui County, Hawaiʻi")[0].latitude,20.891);
+  assert.ok(findPlaces("Lahaina, HI")[0].label.startsWith("Lahaina,"));
   assert.ok(findPlaces("São Paulo").some(p=>p.label.includes("Brazil")));
   assert.deepEqual(findPlaces("20.891, -156.505")[0],{...place,label:"20.891°, -156.505°"});
   for(const bad of [[null,45],["",45],[91,180],[55,200],[NaN,50]])assert.equal(point(...bad),null);

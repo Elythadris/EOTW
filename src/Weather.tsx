@@ -145,6 +145,6 @@ export default function Weather({location,onAsk}:Props) {
         {storms.map(s=><article className="wx-storm" key={s.name+s.source}><h3>{s.name}</h3><p>{s.source} · {timestamp(s.at)}{s.windKnots!==null?" · "+s.windKnots+" kt":""}</p><div><button onClick={()=>{choose({label:s.name+" reported center",latitude:s.latitude,longitude:s.longitude});setLayer("storms");window.scrollTo({top:0,behavior:"instant"});}}><LocateFixed size={15}/> View position</button><a href={s.url} target="_blank" rel="noreferrer">Source <ArrowUpRight size={13}/></a></div></article>)}
       </div></section></div>
     </>}
-    <p className="wx-credit">City references from <a href="https://www.naturalearthdata.com/downloads/10m-cultural-vectors/10m-populated-places/" target="_blank" rel="noreferrer">Natural Earth</a>. Coordinates select any point worldwide.</p>
+    <p className="wx-credit">City references from <a href="https://www.naturalearthdata.com/downloads/10m-cultural-vectors/10m-populated-places/" target="_blank" rel="noreferrer">Natural Earth</a> and the <a href="https://www.census.gov/geographies/reference-files/time-series/geo/gazetteer-files.html" target="_blank" rel="noreferrer">U.S. Census Hawaiʻi Gazetteer</a>. Coordinates select any point worldwide.</p>
   </div>;
 }
