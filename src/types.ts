@@ -74,6 +74,7 @@ export interface Situation {
   })[];
 }
 export interface IntelEvent {
+  dateBasis?: "discovery";
   topicClaim?: boolean;
   bulletinCount?: number;
   bulletins?: { id: string; location: string; url: string }[];

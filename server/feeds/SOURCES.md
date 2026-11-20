@@ -87,7 +87,7 @@ The signals endpoint returns exact counts before pagination. The top-level `tota
 - [NWS API](https://www.weather.gov/documentation/services-web-api), [USGS GeoJSON](https://earthquake.usgs.gov/earthquakes/feed/v1.0/geojson.php), [EONET v3](https://eonet.gsfc.nasa.gov/docs/v3)
 - [County of Maui](https://www.mauicounty.gov/RSSFeed.aspx?ModID=1&CID=0), [Hawaiʻi EMA](https://dod.hawaii.gov/hiema/feed/), [Federal Register API](https://www.federalregister.gov/developers/documentation/api/v1)
 - [Natural Earth map data](https://www.naturalearthdata.com/about/terms-of-use/), [Census TIGERweb](https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/State_County/MapServer)
-- [Justice Department news](https://www.justice.gov/news/rss?type=press_release), [The Conversation US edition](https://theconversation.com/us/articles.atom)
+- [Justice Department press release API](https://www.justice.gov/developer/api-documentation/api_v1), [The Conversation US edition](https://theconversation.com/us/articles.atom)
 - [Global Voices and its attribution terms](https://globalvoices.org/about/global-voices-attribution-policy/), [SciCheck](https://www.factcheck.org/scicheck/)
 - [GDELT DOC](https://blog.gdeltproject.org/gdelt-doc-2-0-api-debuts/), [Guardian access and licensing](https://open-platform.theguardian.com/access/), [Reddit API terms](https://redditinc.com/policies/data-api-terms)
 - [Netlify Blobs](https://docs.netlify.com/build/data-and-storage/netlify-blobs/), [Scheduled Functions](https://docs.netlify.com/build/functions/scheduled-functions/)

@@ -4,7 +4,7 @@ import { nwsKeys } from "./detection.mjs";
 import { galArticles, galBytes, galUrl } from "./gal.mjs";
 import { editorialRows } from "./editorial.mjs";
 import { XMLParser } from "fast-xml-parser";
-import { date, plain, record } from "./model.mjs";
+import { date, link, plain, record } from "./model.mjs";
 
 export const SCAN_MINUTES = 10;
 
@@ -208,6 +208,26 @@ function federal(text) {
     originLabel: "Federal Register publication date (UTC day).",
   }));
 }
+function justiceReleases(text) {
+  const payload = object(text);
+  if (Number(payload?.metadata?.responseInfo?.status) !== 200)
+    throw new Error("Justice Department API unavailable");
+  // DOJ returns Unix seconds for the publication date and a <time> element
+  // containing Unix seconds for its last editorial change.
+  const epoch = value => {
+    const digits = plain(value, 40);
+    return /^\d{9,10}$/.test(digits) ? Number(digits) * 1000 : null;
+  };
+  return array(payload, "results").slice(0,18).map(item => {
+    const sourceUrl = link(item?.url);
+    const path = sourceUrl && /^https?:\/\/(?:www\.)?justice\.gov(\/.+)$/i.exec(sourceUrl)?.[1];
+    return {
+      title: item?.title, url: path ? "https://www.justice.gov" + path : null,
+      source: "U.S. Department of Justice", country:"US", scope:"us", status:"confirmed", category:"Justice bulletin",
+      summary: plain(item?.teaser, 360), publishedAt:epoch(item?.date), updatedAt:epoch(item?.changed),
+    };
+  });
+}
 function gdelt(text) {
   const result = object(text);
   if (
@@ -369,18 +389,11 @@ export function definitions(env = process.env) {
           category: "Public record",
         })),
     },
-    rssSource(
-      "justice",
-      "U.S. Department of Justice",
-      "https://www.justice.gov/news/rss?type=press_release",
-      {
-        country: "US",
-        scope: "us",
-        category: "Justice bulletin",
-        official: true,
-        limit: 18,
-      },
-    ),
+    {
+      id: "justice", name: "U.S. Department of Justice",
+      url: "https://www.justice.gov/api/v1/press_releases.json?fields=title,url,date,changed,teaser&sort=created&direction=DESC&pagesize=18&page=0",
+      parse: justiceReleases, validatorVersion: "doj-api-v1", maxBytes: 350000,
+    },
     {
       id: "conversation",
       name: "The Conversation · U.S. edition",
@@ -564,8 +577,11 @@ export async function fetchProvider(
     signal: AbortSignal.any([budget, init.signal]),
   });
   const headers = { "User-Agent": agent, ...provider.headers };
-  if (state.etag) headers["If-None-Match"] = state.etag;
-  if (state.modified) headers["If-Modified-Since"] = state.modified;
+  // HTTP validators from a previous endpoint must never suppress the first API fetch.
+  const prefix = provider.validatorVersion ? provider.validatorVersion + "|" : "";
+  const validator = value => typeof value === "string" && value.startsWith(prefix) ? value.slice(prefix.length) : null;
+  if (validator(state.etag)) headers["If-None-Match"] = validator(state.etag);
+  if (validator(state.modified)) headers["If-Modified-Since"] = validator(state.modified);
   if (provider.id === "reddit")
     return {
       events: (await reddit(env, boundedFetch))
@@ -582,7 +598,8 @@ export async function fetchProvider(
     const raw = provider.parse(await body(response, provider.maxBytes), now);
     const events = raw.map((item) => record(item, now)).filter(Boolean);
     if (raw.length && !events.length) throw new Error("No valid records in upstream response");
-    return { events, etag: response.headers.get("etag"), modified: response.headers.get("last-modified") };
+    const stored = key => response.headers.get(key) ? prefix + response.headers.get(key) : null;
+    return { events, etag: stored("etag"), modified: stored("last-modified") };
   };
   if (provider.id !== "gdelt") return fetchPrimary();
   let primaryRetryAfter = state.primaryRetryAfter || 0;

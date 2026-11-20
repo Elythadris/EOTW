@@ -250,7 +250,7 @@ export function ranked(event, now, location) {
   const hours = Math.max(0, (now - Date.parse(event.updatedAt)) / HOUR);
   const rankReasons = [];
   let rank = Math.max(0, 48 - hours);
-  if (hours <= 24) rankReasons.push("Source updated within 24 hours");
+  if (hours <= 24) rankReasons.push(event.observedAt ? "Discovered by GDELT within 24 hours" : "Source updated within 24 hours");
   if (event.severity === "high" || event.severity === "moderate") {
     rank += event.severity === "high" ? 48 : 20;
     rankReasons.push(event.severityReason || "Elevated source severity");
@@ -268,7 +268,7 @@ export function ranked(event, now, location) {
     rank += Math.min(12, Math.log2(event.interest + 1));
     rankReasons.push(event.interest + " " + event.interestType);
   }
-  if (!rankReasons.length) rankReasons.push("Ordered by latest source update");
+  if (!rankReasons.length) rankReasons.push(event.observedAt ? "Ordered by discovery time" : "Ordered by latest source update");
   return {
     ...event,
     rank: Math.round(rank),

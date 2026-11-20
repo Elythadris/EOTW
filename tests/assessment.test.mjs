@@ -234,3 +234,15 @@ test("cached cooldowns retain a safe validation reason or provider status and gi
     assert.ok(kind);
   }
 });
+
+test("NWS observed runoff and a separate forward rainfall forecast keep their respective source passages",()=>{
+  const report={...event,summary:"Extreme rainfall over the headwaters of the St. Johns River has caused the river near Cocoa to rise through Major Flood Stage. Additional heavy rainfall over the next 48 hours will continue to produce river rises above record flood levels."};
+  const assessment=sourceAssessment(assessmentMaterial(report));
+  const past=assessment.hypotheses.find(h=>h.label==="Runoff from recent rainfall");
+  const future=assessment.hypotheses.find(h=>h.label==="Additional forecast rainfall");
+  assert.equal(past.support.length,1);assert.match(past.support[0].text,/St\. Johns River has caused/);
+  assert.equal(future.support.length,1);assert.match(future.support[0].text,/Additional heavy rainfall over the next 48 hours/);
+  assert.deepEqual(past.support[0].citationIds,["1"]);assert.deepEqual(future.support[0].citationIds,["1"]);
+  const historical=sourceAssessment(assessmentMaterial({...report,summary:"Additional heavy rainfall raised the river over the previous week."}));
+  assert.equal(historical.hypotheses.find(h=>h.label==="Additional forecast rainfall").support.length,0);
+});

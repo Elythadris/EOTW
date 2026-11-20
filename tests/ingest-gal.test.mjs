@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { ranked, record } from "../server/feeds/model.mjs";
 import { galArticles, galBytes, galUrl } from "../server/feeds/gal.mjs";
 import { fetchProvider, definitions } from "../server/feeds/providers.mjs";
 const date = "19 Nov 2026 12:10:00 +0000";
@@ -20,6 +21,9 @@ test("bounded GDELT Article List discovery preserves publisher metadata and excl
   assert.equal(found[0].url, "https://example.org/one");
   assert.equal(found[0].source, "example.org");
   assert.equal(found[0].publishedAt, date);
+  const discovery = ranked(record(found[0],now),now,"Maui");
+  assert.ok(discovery.rankReasons.includes("Discovered by GDELT within 24 hours"));
+  assert.ok(discovery.rankReasons.every(reason => !reason.includes("Source updated")));
   assert.throws(() => galArticles("<html>Blocked</html>"));
 });
 test("GDELT DOC throttling uses bounded fallback, preserves validators and honours Retry-After", async () => {

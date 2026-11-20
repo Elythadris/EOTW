@@ -195,7 +195,7 @@ function matches(event,params) {
 }
 function responseEvent(event,detail) {
   const {interest,interestType,expiresAt,observedAt,observations,origin,transient,topicClaim,...rest}=event;
-  return {...rest,expiresAt,topicClaim,timeline:detail ? event.timeline : event.timeline.slice(-8)};
+  return {...rest,expiresAt,topicClaim,...(observedAt ? {dateBasis:"discovery"} : {}),timeline:detail ? event.timeline : event.timeline.slice(-8)};
 }
 const archivePointer = /^(\d{4}-\d{2}-\d{2}):(\d{1,6})$/;
 export function parseFeedParams(url) {

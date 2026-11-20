@@ -145,7 +145,7 @@ export function StoryRow({
           <span className="category">{e.category}</span>
           <span className="dot-separator">·</span>
           <time dateTime={e.publishedAt} title={dateTime(e.publishedAt)}>
-            {relative(e.publishedAt)}
+            {e.dateBasis === "discovery" && "Discovered "}{relative(e.publishedAt)}
           </time>
         </div>
         <h3>
@@ -403,7 +403,7 @@ const utcTime = new Intl.DateTimeFormat(undefined,{hour:"2-digit",minute:"2-digi
 
 function StoryChronology({ e }: { e: IntelEvent }) {
   const [chosen, setChosen] = useState<string | null>(null);
-  const input = e.timeline?.length ? e.timeline : [{at:e.publishedAt,text:"First published by " + e.source}];
+  const input = e.timeline?.length ? e.timeline : [{at:e.publishedAt,text:e.dateBasis === "discovery" ? "Indexed by GDELT." : "First published by " + e.source}];
   const entries = input.map((item,index) => ({...item,ms:Date.parse(item.at),key:item.at + "|" + item.text + "|" + index}))
     .sort((a,b) => (Number.isFinite(a.ms) ? a.ms : Infinity) - (Number.isFinite(b.ms) ? b.ms : Infinity));
   const dated = entries.filter(entry => Number.isFinite(entry.ms));
@@ -483,7 +483,7 @@ export function ArticleDetail({
       <div className="sv-report-kicker"><span>{e.category}</span><Status value={e.status}/></div>
       <h1>{warning?.name || e.title}</h1>
       <div className="sv-attribution"><span><FileText size={15} aria-hidden="true"/>{e.source}</span>
-        {!warning && <time dateTime={e.publishedAt}><Clock3 size={15} aria-hidden="true"/>{dateTime(e.publishedAt)}</time>}
+        {!warning && <time dateTime={e.publishedAt}><Clock3 size={15} aria-hidden="true"/>{e.dateBasis === "discovery" && "Discovered "}{dateTime(e.publishedAt)}</time>}
       </div>
       {warning && <div className="sv-warning-times">
         <span>Issued {warning.issued}</span>{warning.end && <span>Scheduled end {warning.end}</span>}
@@ -543,7 +543,7 @@ export function ArticleDetail({
         <section className="sv-panel">
           <header className="sv-panel-header"><h2>Reporting context</h2></header>
           <dl className="sv-context">
-            <div><dt>Latest recorded update</dt><dd><time dateTime={e.updatedAt}>{dateTime(e.updatedAt)}</time></dd></div>
+            <div><dt>{e.dateBasis === "discovery" ? "Discovery timestamp" : "Latest recorded update"}</dt><dd><time dateTime={e.updatedAt}>{dateTime(e.updatedAt)}</time></dd></div>
             {e.severityReason && <div><dt>Severity basis</dt><dd>{e.severityReason}</dd></div>}
             {e.expiresAt && <div><dt>Expires</dt><dd><time dateTime={e.expiresAt}>{dateTime(e.expiresAt)}</time></dd></div>}
             {e.mapNote && <div><dt>Map location</dt><dd>{e.mapNote}</dd></div>}

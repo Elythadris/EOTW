@@ -24,8 +24,8 @@ const profiles = [
     applies:/\b(?:flood|flooding|rainfall|river discharge)\b/i,
     unknown:"How do measured conditions compare with the forecast in each affected area?",
     ideas:[
-      idea("water-runoff","Runoff from recent rainfall","If runoff is still moving into the basin, water levels could rise after local rain eases.","Compare time-stamped rain and river-gauge observations with the next official forecast.",/\b(?:heavy rain(?:fall)?|accumulated rain|runoff|rainfall amounts|rain has|rainfall has)\b/i),
-      idea("water-forecast","Additional forecast rainfall","Further flooding could depend on whether additional forecast rain actually falls.","Check observed rainfall and whether the next warning revises the crest, affected area or end time.",/\b(?:expected rainfall|rain(?:fall)? is expected|forecast rain|rain.*forecast|rainfall.*redevelop)\b/i),
+      idea("water-runoff","Runoff from recent rainfall","If runoff is still moving into the basin, water levels could rise after local rain eases.","Compare time-stamped rain and river-gauge observations with the next official forecast.",/\b(?:(?:heavy|extreme|torrential|intense) rain(?:fall)?|accumulated rain|runoff|rainfall amounts|rain has|rainfall has)\b/i),
+      idea("water-forecast","Additional forecast rainfall","Further flooding could depend on whether additional forecast rain actually falls.","Check observed rainfall and whether the next warning revises the crest, affected area or end time.",/\b(?:expected rainfall|rain(?:fall)? is expected|forecast rain|rain.*forecast|rainfall.*redevelop|(?:additional|further|more|renewed)\s+(?:(?:heavy|extreme|torrential|intense)\s+)?rain(?:fall)?\b[^.!?;,]{0,65}\b(?:over the next|in the next|will|is expected|is forecast|is likely|tonight|tomorrow))\b/i),
       idea("water-coast","Coastal water levels","If the event is coastal, tide or surge could alter the timing and extent of inundation.","Check the agency’s coastal gauge readings and tide or surge forecast.",/\b(?:coastal flood|tide|tidal|surge)\b/i),
     ],
   },

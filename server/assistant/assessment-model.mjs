@@ -28,7 +28,15 @@ function sourcePassages(records) {
     const values = record.kind.startsWith("published ") ? [record.excerpt] : [record.excerpt, record.title];
     const seen = new Set();
     for (const value of values) {
-      const sentences = tidy(value).split(/(?<=[.!?])\s+|\s+(?=\*\s+[A-Z])/u);
+      const chunks = tidy(value).split(/(?<=[.!?])\s+|\s+(?=\*\s+[A-Z])/u);
+      const sentences = [];
+      for (const chunk of chunks) {
+        // "St. Johns" and similar place names are one observation, not two sources.
+        const prior = sentences.at(-1);
+        if (prior && /\b(?:St|Ft|Mt)\.$/.test(prior) && /^[A-Z][a-z]/.test(chunk))
+          sentences[sentences.length-1] = prior + " " + chunk;
+        else sentences.push(chunk);
+      }
       for (const sentence of sentences) {
         const text = tidy(sentence).replace(/^\*+\s*/, "");
         if (text.length < 12 || text.length > 410 || seen.has(text)) continue;
