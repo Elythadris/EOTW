@@ -5,6 +5,8 @@ export default sitemapHandler({
   pages: [
     "/",
     "/map",
+    "/weather",
+    "/finance",
     "/trending",
     "/rabbit-hole",
     "/investigate",

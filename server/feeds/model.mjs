@@ -106,7 +106,7 @@ export function record(raw, now = Date.now()) {
   let category = plain(raw.category, 80) || "Reporting";
   if (
     news &&
-    /\b(ceasefire|peace talks|armed conflict|airstrikes?|invasion)\b/i.test(
+    /\b(ceasefire|peace talks|armed conflict|airstrikes?|invasion|humanitarian corridor|military exercises?)\b/i.test(
       title,
     )
   )
@@ -118,6 +118,8 @@ export function record(raw, now = Date.now()) {
     )
   )
     category = "Emergency reporting";
+  else if (news && /\b(cyber attacks?|cyberattacks?|ransomware|data breach)\b/i.test(title)) category = "Cyber reporting";
+  else if (news && /\b(power grid|power outage|water outage|pipeline failure|transport disruption|internet outage|undersea cable)\b/i.test(title)) category = "Infrastructure reporting";
   else if (news && claimTopics.test(title)) category = "Claim coverage";
   return {
     id,
@@ -133,6 +135,7 @@ export function record(raw, now = Date.now()) {
     ...(raw.alertArea && raw.source === "National Weather Service" ? { alertArea: raw.alertArea } : {}),
     ...(raw.editorialType ? {
       editorialType: raw.editorialType,
+      ...(raw.referenceOnly ? { referenceOnly:true } : {}),
       byline: raw.byline,
       supersedes: raw.supersedes,
       ...(raw.evidence?.length ? { evidence: raw.evidence } : {}),

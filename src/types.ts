@@ -2,6 +2,9 @@ export type Scope = "all" | "local" | "us" | "global";
 export type Page =
   | "briefing"
   | "map"
+  | "weather"
+  | "finance"
+  | "community"
   | "trending"
   | "rabbit"
   | "investigate"
@@ -14,6 +17,10 @@ export type EditorialType =
   | "investigation"
   | "prediction"
   | "correction";
+
+export type AnalystContext =
+  | { kind: "weather"; latitude: number; longitude: number; label: string }
+  | { kind: "finance"; symbol: string; label: string };
 
 export type SignalLevel = "watch" | "elevated" | "high";
 export interface SignalAssessment {

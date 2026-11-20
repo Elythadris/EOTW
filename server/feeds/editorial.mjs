@@ -58,6 +58,7 @@ export function editorialRows(text, now = Date.now()) {
     if (row.scope && !["us", "global"].includes(row.scope)) throw new Error("Invalid editorial scope");
     if (row.status && !["confirmed", "developing", "speculation"].includes(row.status)) throw new Error("Invalid editorial status");
     if (row.topicClaim !== undefined && typeof row.topicClaim !== "boolean") throw new Error("topicClaim must be a boolean");
+    if (row.referenceOnly !== undefined && typeof row.referenceOnly !== "boolean") throw new Error("referenceOnly must be a boolean");
     const author = requiredText(row.byline, 80);
     return {
       title: requiredText(row.title, 240),
@@ -68,6 +69,7 @@ export function editorialRows(text, now = Date.now()) {
       category: editorialTypes[row.type],
       editorialType: row.type,
       topicClaim: row.topicClaim === true,
+      referenceOnly: row.referenceOnly === true,
       publishedAt,
       updatedAt,
       status: row.type === "prediction" ? "speculation" : row.status || "developing",

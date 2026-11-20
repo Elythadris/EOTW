@@ -1,4 +1,6 @@
 import {
+  lazy,
+  Suspense,
   useCallback,
   useEffect,
   useState,
@@ -12,6 +14,9 @@ import {
   Bell,
   Bookmark,
   ChevronDown,
+  CloudRain,
+  LineChart,
+  MessagesSquare,
   Database,
   Globe2,
   Layers,
@@ -43,7 +48,8 @@ import {
   StoryRow,
 } from "./components";
 import { useFeed, usePreferences } from "./data";
-import EventMap from "./EventMap";
+import WorldDesk from "./WorldDesk";
+import "./workstation.css";
 import Research from "./Research";
 import Watchlist, { LocationForm } from "./Watchlist";
 import {
@@ -51,11 +57,16 @@ import {
   inHotWindow,
   relative,
   staleScan,
+  type AnalystContext,
   type EditorialType,
   type IntelEvent,
   type Page,
   type Scope,
 } from "./types";
+
+const Weather = lazy(() => import("./Weather"));
+const Finance = lazy(() => import("./Finance"));
+const Community = lazy(() => import("./Community"));
 
 const menu = [
   {
@@ -77,6 +88,9 @@ const menu = [
     label: "Rabbit hole",
     icon: Telescope,
   },
+  { page: "weather", path: "/weather", label: "Weather", icon: CloudRain },
+  { page: "finance", path: "/finance", label: "Finance", icon: LineChart },
+  { page: "community", path: "/community", label: "Live chat", icon: MessagesSquare },
   {
     page: "investigate",
     path: "/investigate",
@@ -95,7 +109,7 @@ const headings: Record<string, [string, string]> = {
   ],
   map: [
     "Live map",
-    "Explore located reports and trace each marker to its source.",
+    "Explore priority signals and open the underlying reports from the map.",
   ],
   trending: [
     "Hot 24",
@@ -105,6 +119,9 @@ const headings: Record<string, [string, string]> = {
     "Rabbit hole",
     "Track unusual reports and emerging narratives. Inspect the evidence, counterevidence, and verification status.",
   ],
+  weather: ["Weather", "Forecasts, observations, and official alerts by location."],
+  finance: ["Finance", "Market benchmarks, outlier moves, and scheduled economic events."],
+  community: ["Live chat", "Follow and discuss public reports by topic."],
   investigate: [
     "Investigate",
     "Search the archive and follow the evidence across reports.",
@@ -161,6 +178,7 @@ function route() {
     archiveType,
     archiveLabel,
     archiveScope,
+    weatherPlace: url.searchParams.get("place")?.slice(0, 90) || "",
   };
 }
 function Brand() {
@@ -185,6 +203,13 @@ export default function App() {
   const [allMapReports, setAllMapReports] = useState(false);
   const [drawer, setDrawer] = useState(false);
   const [ask, setAsk] = useState(false);
+  const [analystFocus, setAnalystFocus] = useState<{question?: string; context?: AnalystContext; story?: IntelEvent} | null>(null);
+  const [promptSequence, setPromptSequence] = useState(0);
+  const launch = (question?: string, context?: AnalystContext, story?: IntelEvent) => {
+    setAnalystFocus({question, context, story});
+    setPromptSequence(sequence => sequence + 1);
+    setAsk(true);
+  };
   const [place, setPlace] = useState(false);
   const [search, setSearch] = useState(false);
   const [message, setMessage] = useState("");
@@ -196,7 +221,7 @@ export default function App() {
   const coverage = page === "archive" ? archiveScope : scope;
   const isStory = page === "story";
   const loadPage =
-    !["watchlist", "missing"].includes(page) &&
+    !["watchlist", "missing", "weather", "finance", "community"].includes(page) &&
     !(page === "investigate" && !query) &&
     !(isStory && !id);
   const requestView =
@@ -237,6 +262,7 @@ export default function App() {
     setCategory("");
     setDrawer(false);
     setSearch(false);
+    setAsk(false);
     if (!keepPosition) {
       window.scrollTo(0, 0);
       document.getElementById("main-content")?.focus({ preventScroll: true });
@@ -343,11 +369,11 @@ export default function App() {
       className="side-nav"
       aria-label={mobile ? "Mobile navigation" : "Main navigation"}
     >
-      {menu.map((item, i) => (
+      {menu.map((item) => (
         <div key={item.page}>
-          {(i === 0 || i === 4 || i === 7) && (
+          {(item.page === "briefing" || item.page === "investigate" || item.page === "health") && (
             <div className="nav-group">
-              {i === 0 ? "Monitor" : i === 4 ? "Research" : "System"}
+              {item.page === "briefing" ? "Monitor" : item.page === "investigate" ? "Research" : "System"}
             </div>
           )}
           <a
@@ -400,6 +426,7 @@ export default function App() {
               open={open}
               saved={prefs.saved.includes(e.id)}
               save={() => save(e)}
+              ask={() => launch("Investigate the reported claim. Separate original evidence, contradictions, and open questions.", undefined, e)}
             />
           ) : page === "trending" ? (
             <StoryReview
@@ -410,6 +437,7 @@ export default function App() {
               saved={prefs.saved.includes(e.id)}
               save={() => save(e)}
               rank={i}
+              ask={() => launch("What changed, why does it matter, and which public sources support it?", undefined, e)}
             />
           ) : (
             <StoryRow
@@ -466,7 +494,7 @@ export default function App() {
             <span>Search reports</span>
             <kbd>⌘/Ctrl K</kbd>
           </button>
-          <button className="ask-button" onClick={() => setAsk(true)}>
+          <button className="ask-button" onClick={() => launch()}>
             <Radio size={17} />
             <span>Ask EOTW</span>
           </button>
@@ -573,6 +601,9 @@ export default function App() {
                 )}
               </div>
             )}
+            {page === "briefing" && <nav className="command-tools" aria-label="Specialized workspaces">
+              {menu.filter(item => ["weather","finance","community"].includes(item.page)).map(item => <a key={item.page} href={item.path} onClick={event => intercept(event,item.path)}><item.icon size={17} aria-hidden="true"/>{item.label}</a>)}
+            </nav>}
             {page === "briefing" && (
               <Briefing
                 data={feed.data}
@@ -582,7 +613,7 @@ export default function App() {
                 save={save}
                 go={go}
                 setLocation={() => setPlace(true)}
-                ask={() => setAsk(true)}
+                ask={() => launch()}
                 loadMore={feed.loadMore}
                 loadingMore={feed.more}
               />
@@ -630,16 +661,11 @@ export default function App() {
                     </select>
                   </label>
                 </div>
-                <section className="panel full-map">
-                  <EventMap
-                    events={mapRows}
-                    focusScope={scope === "all" || scope === "conspiracy" ? undefined : scope}
-                    onSelect={open}
-                    scanAt={
-                      feed.data.intelligence?.lastScan || feed.data.updatedAt
-                    }
-                  />
-                </section>
+                <WorldDesk events={mapRows}
+                  focusScope={scope === "all" || scope === "conspiracy" ? undefined : scope}
+                  scanAt={last} location={prefs.location} open={open} save={save} saved={prefs.saved}
+                  onAsk={(question, event) => launch(question, undefined, event)}
+                  weather={(area) => navigate("/weather?place=" + encodeURIComponent(area))} />
                 <section className="panel">
                   <PanelHeading icon={<MapPin size={18} />}>
                     Mapped reports
@@ -649,10 +675,23 @@ export default function App() {
                 </section>
               </>
             )}
+            {(page === "weather" || page === "finance" || page === "community") && (
+              <Suspense fallback={<Skeleton/>}>
+                {page === "weather" && <Weather key={current.weatherPlace} location={current.weatherPlace || prefs.location} onAsk={launch}/>}
+                {page === "finance" && <Finance onAsk={launch}/>}
+                {page === "community" && <Community/>}
+              </Suspense>
+            )}
             {(page === "trending" ||
               page === "rabbit" ||
               page === "archive") && (
               <>
+                {page === "rabbit" && <section className="rabbit-tools" aria-label="Claim research">
+                  <SearchBox label="Search tracked claims" defaultValue={query} submit={(term) => lookup(term, "rabbit-hole")}/>
+                  <div className="rabbit-topics" aria-label="Topics">{["All claims", "QAnon", "UAP", "Whistleblower", "Intelligence operation"].map((term) => <button key={term} type="button"
+                    aria-pressed={query === (term === "All claims" ? "" : term)} onClick={() => lookup(term === "All claims" ? "" : term, "rabbit-hole")}>{term}</button>)}</div>
+                  <a href="/archive?q=QAnon" onClick={(e) => intercept(e, "/archive?q=QAnon")}>Search historical QAnon records</a>
+                </section>}
                 {page === "archive" && (
                   <SearchBox
                     label="Search the archive"
@@ -767,7 +806,7 @@ export default function App() {
                   open={open}
                   saved={prefs.saved}
                   save={save}
-                  ask={() => setAsk(true)}
+                  ask={() => launch()}
                 />
                 {loadMore}
               </>
@@ -794,7 +833,7 @@ export default function App() {
                     e={selected}
                     saved={prefs.saved.includes(selected.id)}
                     save={() => save(selected)}
-                    ask={() => setAsk(true)}
+                    ask={() => launch(undefined, undefined, selected)}
                     investigate={(q) => lookup(q)}
                   />
                 ) : feed.busy && !!id ? (
@@ -863,7 +902,10 @@ export default function App() {
         open={ask}
         onClose={() => setAsk(false)}
         state={prefsState}
-        story={selected}
+        story={analystFocus?.story || selected}
+        prompt={analystFocus?.question}
+        promptSequence={promptSequence}
+        context={analystFocus?.context}
         page={page === "briefing" ? "signals" : page}
         category={page === "map" ? category : ""}
         scope={coverage}

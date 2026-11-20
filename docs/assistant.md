@@ -2,6 +2,8 @@
 
 Ask EOTW searches the site's ingested public reporting at request time. It retrieves the selected story, recent records for the current view and matching archive entries. It sends up to six relevant records to the configured model. Social posts are excluded from the model material. Publication dates, source labels and timeline excerpts travel with each record. An empty search produces an explicit empty result.
 
+Selecting a licensed market benchmark or forecast sends only its symbol or rounded coordinates as a lookup key. The backend reads the same public providers used by the selected view and supplies attributable records. Browser-submitted numbers and citations are never accepted as evidence.
+
 The answer service requires a known source ID and a matching verbatim excerpt for each generated paragraph. It creates numbered links from stored publisher URLs. An evidence match verifies the origin of an excerpt. Readers can inspect the linked report to assess the model's interpretation. When a provider is disabled, a daily limit is reached or an answer fails validation, the endpoint returns attributed headlines with `mode: "sources"`.
 
 ## Model settings
@@ -11,6 +13,8 @@ Production deployments on eligible Netlify plans can use the hosted AI Gateway. 
 | Optional Functions variable | Purpose |
 | --- | --- |
 | `AI_MODEL` | Defaults to `gpt-4.1-mini`. The selected model must support Chat Completions, JSON object output and the completion-token limit. |
+| `OPENAI_API_KEY` | Private OpenAI Platform project API key for direct integration. Add it in production Functions scope. |
+| `EOTW_OPENAI_DIRECT` | Set to `true` with your own `OPENAI_API_KEY` to select the OpenAI API endpoint explicitly, even when Netlify AI Gateway is available. |
 | `AI_API_KEY` | Use your own compatible provider. The key stays in Netlify Functions. |
 | `AI_BASE_URL` | Set with `AI_API_KEY` for an alternative provider's HTTPS API base. With a custom key alone the SDK uses the OpenAI v1 API. |
 | `AI_DAILY_LIMIT` | Site-wide maximum model attempts per UTC day. Default 25, allowed range 0–500. Set to 0 for source-only operation. |

@@ -35,5 +35,47 @@
         "finding": "NASA says available evidence does not support an extraterrestrial origin for UAP. It also reports that too few high-quality observations are available to draw broad scientific conclusions."
       }
     ]
+  },
+  {
+    "slug": "2026-11-20-qanon-archived-first-drop",
+    "type": "investigation",
+    "referenceOnly": true,
+    "title": "QAnon archive: the October 2017 extradition claim",
+    "summary": "The archived first QAnon drop claims an extradition was underway. A congressional report records that the associated arrest prediction failed. Inspect the original post metadata, the contradiction, and what remains unknown.",
+    "byline": "EOTW public-record review · AI-assisted",
+    "publishedAt": "2026-11-20T10:04:23.042Z",
+    "updatedAt": "2026-11-20T10:04:23.042Z",
+    "scope": "us",
+    "location": "United States",
+    "status": "developing",
+    "topicClaim": true,
+    "sources": [
+      {
+        "name": "JSON-QAnon · indexed copy of original post 147012719",
+        "url": "https://github.com/jkingsman/JSON-QAnon"
+      },
+      {
+        "name": "House Select Committee · Chapter 6",
+        "url": "https://www.govinfo.gov/content/pkg/GPO-J6-REPORT/html-submitted/ch6.html"
+      },
+      {
+        "name": "ICWSM · Canonical Q drops research",
+        "url": "https://ojs.aaai.org/index.php/ICWSM/article/view/19330"
+      }
+    ],
+    "evidence": [
+      {
+        "name": "JSON-QAnon · indexed copy of original post 147012719",
+        "url": "https://github.com/jkingsman/JSON-QAnon",
+        "finding": "The research corpus catalogs the anonymous 4chan /pol/ post 147012719 as drop 1, timestamped October 28, 2017, at 20:44 UTC. It claimed that Hillary Clinton's extradition was already in motion."
+      }
+    ],
+    "counterevidence": [
+      {
+        "name": "House Select Committee · Chapter 6",
+        "url": "https://www.govinfo.gov/content/pkg/GPO-J6-REPORT/html-submitted/ch6.html",
+        "finding": "The committee records that the associated October 2017 prediction of Hillary Clinton’s arrest did not come to pass."
+      }
+    ]
   }
 ]

@@ -1,0 +1,28 @@
+.world-desk{display:grid;grid-template-columns:minmax(0,1fr) minmax(17rem,22rem);gap:1rem;align-items:start;margin-bottom:1rem}
+.world-desk>.full-map{min-width:0;margin:0}
+.world-brief{padding:1rem;min-width:0}
+.world-brief>header{display:flex;align-items:center;gap:.55rem;color:var(--accent,#78ddd2);padding-bottom:.8rem;border-bottom:1px solid rgba(137,181,183,.2)}
+.world-brief h2{margin:0;color:inherit;font-size:.94rem}
+.world-record{padding:.9rem 0 .4rem;overflow-wrap:anywhere}
+.world-record h3{font-size:1rem;line-height:1.4;margin:.65rem 0 .35rem}
+.world-record p,.world-empty p{font-size:.85rem;line-height:1.52;margin:.45rem 0}
+.world-record time,.world-map-note{color:var(--muted,#9daeb4);font-size:.77rem}
+.world-meta,.world-links,.rabbit-topics{display:flex;align-items:center;flex-wrap:wrap;gap:.5rem}
+.world-meta{font-size:.76rem;color:var(--muted,#9daeb4)}
+.world-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.45rem;margin:.75rem 0}
+.world-actions button,.world-weather,.rabbit-topics button{display:inline-flex;align-items:center;justify-content:center;gap:.42rem;padding:.55rem .62rem;min-height:2.6rem;border:1px solid rgba(137,181,183,.26);border-radius:.45rem;background:rgba(66,116,117,.12);color:inherit;font:inherit;font-size:.8rem;cursor:pointer}
+.world-actions button:hover,.world-weather:hover,.rabbit-topics button:hover,.world-actions button[aria-pressed=true],.rabbit-topics button[aria-pressed=true]{border-color:var(--accent,#78ddd2);background:rgba(66,116,117,.3)}
+.world-links{margin:.7rem 0 .95rem}
+.world-links a{display:inline-flex;gap:.2rem;align-items:center;font-size:.8rem}
+.world-weather{margin-top:1rem;width:100%;min-width:0;overflow-wrap:anywhere}
+.world-weather svg,.world-actions svg{flex-shrink:0}
+.world-empty p{margin:.85rem 0}
+.rabbit-tools{margin-bottom:1rem;display:grid;gap:.7rem;justify-items:start}
+.rabbit-tools>a{font-size:.82rem}
+.rabbit-topics button{min-height:2.25rem}
+.sv-analyst-action{margin:.6rem 0}
+@media(max-width:1060px){.world-desk{grid-template-columns:minmax(0,1fr)}}
+
+.command-tools{display:flex;flex-wrap:wrap;gap:.5rem;margin:0 0 1rem}
+.command-tools a{display:inline-flex;gap:.45rem;align-items:center;min-height:2.6rem;padding:.48rem .8rem;border:1px solid rgba(137,181,183,.26);border-radius:.45rem;background:rgba(66,116,117,.12);font-size:.86rem;text-decoration:none}
+.command-tools a:hover{border-color:var(--accent,#78ddd2);background:rgba(66,116,117,.26)}

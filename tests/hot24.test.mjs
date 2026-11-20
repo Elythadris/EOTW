@@ -99,3 +99,7 @@ test("public discussion can rank as a claim only while the approved source is cu
   assert.equal(resp.headers.get("Cache-Control"),"no-store");
   assert.equal(resp.headers.get("Netlify-CDN-Cache-Control"),null);
 });
+
+test("a new archive reference to a historical narrative stays out of Hot 24", () => {
+  assert.equal(hotEdition({referenceOnly:true,publishedAt:new Date().toISOString()},Date.now()),null);
+});

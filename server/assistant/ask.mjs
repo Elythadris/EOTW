@@ -1,5 +1,6 @@
 import { searchEvents } from "../feeds/store.mjs";
 import { errorResponse, readJson, reply, setting } from "./http.mjs";
+import { inputContext, selectedEvidence } from "./data-context.mjs";
 import { inputQuery, retrieve } from "./retrieval.mjs";
 import { providerProblem } from "./passages.mjs";
 import { dailyLimits, reserve } from "./quota.mjs";
@@ -7,6 +8,7 @@ import { groundedAnswer, provider, sourceAnswer } from "./answer.mjs";
 
 export function askHandler({
   search = searchEvents,
+  contextEvidence = selectedEvidence,
   model = provider,
   permit = reserve,
   env = setting,
@@ -15,9 +17,13 @@ export function askHandler({
     if (request.method !== "POST")
       return reply({ error: "Use POST." }, 405, { Allow: "POST" });
     try {
-      const query = inputQuery(await readJson(request, 32768));
-      const records = await retrieve(query, search);
-      if (!records.length) return reply(sourceAnswer([], "offline"));
+      const body = await readJson(request, 32768);
+      const query = inputQuery(body);
+      const focus = inputContext(body.context);
+      const records = focus ? await contextEvidence(focus) : await retrieve(query, search);
+      if (!records.length) return reply(focus ? {
+        mode:"sources",answer:"The provider has no citable data for this selection. Check the source shown on the chart or forecast.",citations:[],
+      } : sourceAnswer([], "offline"));
       const generate = model(env, context);
       if (!generate) return reply(sourceAnswer(records, "offline", query));
       try {
@@ -34,7 +40,7 @@ export function askHandler({
       }
       const startedAt = Date.now();
       try {
-        const result = await generate(query, records);
+        const result = await generate(focus ? {...query,context:focus} : query, records);
         return reply(
           groundedAnswer(result, records, reason => console.warn("EOTW answer validation", {reason, elapsedMs:Date.now()-startedAt})) || sourceAnswer(records, "unchecked", query),
         );

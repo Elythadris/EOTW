@@ -12,6 +12,7 @@ import { type PrefsState } from "./data";
 import {
   messageText,
   sourceURL,
+  type AnalystContext,
   type Citation,
   type IntelEvent,
   type Message,
@@ -75,6 +76,9 @@ export default function Assistant({
   category,
   scope,
   query,
+  prompt,
+  promptSequence,
+  context,
 }: {
   open: boolean;
   onClose: () => void;
@@ -84,6 +88,9 @@ export default function Assistant({
   category: string;
   scope: string;
   query: string;
+  prompt?: string;
+  promptSequence: number;
+  context?: AnalystContext;
 }) {
   const [question, setQuestion] = useState("");
   const [busy, setBusy] = useState(false);
@@ -95,6 +102,9 @@ export default function Assistant({
   const end = useRef<HTMLDivElement>(null);
   const pending = useRef(false);
   const history = state.prefs.history;
+  useEffect(() => {
+    if (open) { setQuestion(prompt || ""); setError(""); }
+  }, [open, prompt, promptSequence]);
   useEffect(() => {
     if (open) end.current?.scrollIntoView({ block: "nearest" });
   }, [open, busy, history.length]);
@@ -123,6 +133,7 @@ export default function Assistant({
           question: input,
           location: state.prefs.location,
           storyId: story?.id,
+          context,
           filters: {
             view: page,
             scope,
@@ -173,7 +184,7 @@ export default function Assistant({
     }
   };
   if (!open) return null;
-  const start = story
+  const start = prompt || (story
     ? "What evidence supports this report?"
     : query
       ? "What does the archive report about " + query + "?"
@@ -181,7 +192,7 @@ export default function Assistant({
         ? "What changed in the priority signals near " +
           state.prefs.location +
           "?"
-        : "What are the latest reports near " + state.prefs.location + "?";
+        : "What are the latest reports near " + state.prefs.location + "?");
   const submit = (e: FormEvent) => {
     e.preventDefault();
     void send(question);
@@ -190,8 +201,8 @@ export default function Assistant({
     <Modal title="Ask EOTW" onClose={onClose} className="assistant">
       <div className="assistant-context">
         <Radio size={14} />
-        {story
-          ? "Analyst · Selected story"
+        {context ? "Analyst · " + context.label : story
+          ? "Analyst · " + story.title
           : query
             ? "Analyst · Investigating " + query
             : (page === "map"
@@ -267,7 +278,7 @@ export default function Assistant({
         {busy && (
           <div className="chat-busy" role="status">
             <Sparkles size={15} />
-            Searching the source archive…
+            Checking the available sources…
           </div>
         )}
         {error && (

@@ -16,7 +16,7 @@ const operational = /\b(proof[- ]of[- ]concept|exploit code|troop positions|stri
 // The collector's first-seen timestamp is not a publisher date. An older
 // article needs both a recent source clock and an identifiable material change.
 export function hotEdition(e, now) {
-  if (e.observedAt || operational.test(e.title) || (e.expiresAt && Date.parse(e.expiresAt) <= now)) return null;
+  if (e.referenceOnly || e.observedAt || operational.test(e.title) || (e.expiresAt && Date.parse(e.expiresAt) <= now)) return null;
   const changes = (e.observations?.changes || []).filter(c => inDay(c.at, now));
   if (inDay(e.updatedAt, now) && e.updatedAt > e.publishedAt) {
     const change = changes.findLast(c => ["escalation","correction","coverage"].includes(c.kind));

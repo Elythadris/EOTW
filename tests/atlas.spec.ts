@@ -187,3 +187,24 @@ test("a quiet local assessment leads to the local archive and keeps wider warnin
   await page.getByText("Publisher’s full headline", { exact: true }).click();
   await expect(page.getByText(warning.title, { exact: true })).toBeVisible();
 });
+
+test("a map selection stays connected to the analyst and weather workspace", async ({ page }) => {
+  await interceptAtlas(page, [international]);
+  await page.route("**/api/ask", request => request.fulfill({json:{mode:"sources",answer:"See the selected public report. [1]",citations:[{id:"1",title:international.title,url:international.url}]}}));
+  await page.goto("/map");
+  const atlas = page.getByRole("region", {name:"Report atlas"});
+  await atlas.getByRole("button", {name:/Japan public advisory/}).click();
+  const workspace=page.getByRole("region",{name:"Map workspace"});
+  await expect(workspace.getByRole("heading",{name:international.title})).toBeVisible();
+  await workspace.getByRole("button",{name:"Compare",exact:true}).click();
+  const analyst=page.getByRole("dialog",{name:"Ask EOTW"});
+  await expect(analyst.getByRole("textbox",{name:"Your question"})).toHaveValue(/Compare this report/);
+  const request=page.waitForRequest(r=>r.url().endsWith("/api/ask") && r.method()==="POST");
+  await analyst.getByRole("button",{name:"Send question"}).click();
+  expect((await request).postDataJSON().storyId).toBe(international.id);
+  await expect(analyst.getByRole("log").getByText("See the selected public report.",{exact:false})).toBeVisible();
+  await page.keyboard.press("Escape");
+  await workspace.getByRole("button",{name:"Weather for Japan"}).click();
+  await expect(page).toHaveURL(/\/weather\?place=Japan/);
+  await expect(page.getByRole("heading",{name:"Weather",exact:true})).toBeVisible();
+});

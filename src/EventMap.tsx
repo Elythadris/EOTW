@@ -16,7 +16,7 @@ type PointReport = { event: IntelEvent; kind: Kind; xy: Pair; area: string };
 type Group = { x: number; y: number; members: PointReport[] };
 type Priority = "high" | "elevated" | "watch" | "routine";
 type Label = { name: string; at: Pair; type: "continent" | "ocean" | "country" | "island" };
-type Props = { events: IntelEvent[]; onSelect: (e: IntelEvent) => void; compact?: boolean; scanAt?: string | null; focusScope?: Scope };
+type Props = { events: IntelEvent[]; onSelect: (e: IntelEvent) => void; onInspect?: (e: IntelEvent) => void; compact?: boolean; scanAt?: string | null; focusScope?: Scope };
 
 const projection = geoNaturalEarth1().scale(150).translate([0, 0]);
 const path = geoPath(projection);
@@ -194,7 +194,7 @@ function Glyph({ kind, r = 4 }: { kind: Kind; r?: number }) {
 }
 function place(e: IntelEvent) { return e.location || scopeName[e.scope]; }
 
-export default function EventMap({ events, onSelect, compact = false, scanAt = null, focusScope }: Props) {
+export default function EventMap({ events, onSelect, onInspect, compact = false, scanAt = null, focusScope }: Props) {
   const svg = useRef<SVGSVGElement>(null);
   const [size, setSize] = useState<Size>({ w: 800, h: 392 });
   useEffect(() => {
@@ -272,7 +272,9 @@ export default function EventMap({ events, onSelect, compact = false, scanAt = n
     clear(); setViewName(name); setManual(fit(pointsToFit, size, base, maximum));
   }
   function pick(group: Group, node: SVGGElement) {
-    previousMarker.current = node; setPicked(group.members[0].event.id); setHover(null);
+    const report = group.members[0].event;
+    previousMarker.current = node; setPicked(report.id); setHover(null);
+    onInspect?.(report);
   }
   function flipLayer(kind: Kind) {
     clear(); setHidden(state => state.includes(kind) ? state.filter(k => k !== kind) : [...state, kind]);
@@ -361,7 +363,10 @@ export default function EventMap({ events, onSelect, compact = false, scanAt = n
     </div>
     {selected && <section className="eotw-cluster" aria-label="Selected map reports" onKeyDown={e => { if (e.key === "Escape") dismiss(); }}>
       <div className="eotw-cluster-head"><div><small>{selected.members.length === 1 ? "Selected report" : selected.members.length + " reports near"}</small><strong>{place(selected.members[0].event)}</strong></div><button type="button" ref={closePanel} aria-label="Close map reports" onClick={dismiss}><X size={17}/></button></div>
-      <div className="eotw-cluster-list">{selected.members.map(({ event }) => <button type="button" key={event.id} className="eotw-open-report" onClick={() => onSelect(event)}>
+      <div className="eotw-cluster-list">{selected.members.map(({ event }) => <button type="button" key={event.id} className="eotw-open-report" onClick={() => {
+        if (onInspect) { setPicked(event.id); onInspect(event); }
+        else onSelect(event);
+      }}>
         <span><small>{priorityNames[priority(event)]} · {event.source}</small><strong>{event.title}</strong>
           {(event.mapNote || event.coordinatePrecision === "country" || event.coordinatePrecision === "region") && <em>{event.mapNote || "Approximate regional location"}</em>}
         </span><ArrowUpRight size={16} aria-hidden="true"/></button>)}</div>

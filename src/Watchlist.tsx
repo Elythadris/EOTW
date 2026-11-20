@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { Bell, Bookmark, Check, MapPin, Plus, Radio, X } from "lucide-react";
 import Account from "./Account";
 import { NoItems, Skeleton, StoryRow } from "./components";
@@ -142,6 +142,9 @@ export default function Watchlist({
 }) {
   const { prefs, change, sync } = state;
   const [input, setInput] = useState("");
+  useEffect(() => {
+    if (window.location.hash === "#account") document.getElementById("account")?.scrollIntoView();
+  }, []);
   const [topic, setTopic] = useState("");
   const [limit, setLimit] = useState(8);
   const activeTopic = prefs.topics.includes(topic) ? topic : "";
@@ -314,7 +317,7 @@ export default function Watchlist({
             Alerts {prefs.notifications ? "on" : "off"}
           </button>
         </section>
-        <section className="panel section-pad">
+        <section id="account" className="panel section-pad">
           <h2>Account &amp; storage</h2>
           <p className="sync-state" role="status">
             {sync === "saved"

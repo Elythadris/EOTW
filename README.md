@@ -5,7 +5,10 @@
 ## Using EOTW
 
 - **Command Center** opens with a source-linked situation briefing, collection health, scan time and regional threat levels. Open a regional signal to see the reasons for its score and what to monitor next. Escalation compares changes to the same incident. Anomaly detection compares observed activity with previously collected samples and shows when the baseline is still forming.
-- **Live Map** groups spatially close reports as you zoom. Explore categorized incidents, published NWS warning areas when supplied, and individual report timelines. Coverage depends on the coordinates supplied by each source.
+- **Live Map** groups nearby reports as you zoom. Select a marker to open its evidence, compare related reports, add it to your watchlist, or jump to weather for the report area. Sources with broad or uncertain geography are labeled accordingly.
+- **Weather** looks up locations and coordinates. It combines official forecasts, U.S. alerts and radar, global satellite imagery, and reported tropical activity. Use the analyst to explain the selected forecast from publisher evidence.
+- **Finance** charts dated public reference series, highlights outlier moves, and lists official Treasury auctions. The optional branded market chart shows its publisher’s data or delay labels. Reference data stays available when the embedded chart is blocked.
+- **Live chat** provides public topic rooms using the existing Netlify Identity sign-in and Blobs storage. Sign in to participate. Messages are public for up to 30 days, with 50 visible posts per topic. Authors can remove their own messages. Give designated moderators the `community-moderator` or `admin` app role in Netlify Identity to review flags or remove posts.
 - **Hot 24** ranks significant new reports and material changes within a rolling 24-hour window. Open a ranked report to see its qualifying source time, ranking reasons and intelligence assessment.
 - **Rabbit Hole** separates public records, reported claims and speculation. Open a claim to inspect verification status, source credibility and any documented supporting or contrary evidence.
 - **Investigate** searches indexed reporting and its timelines. **Ask EOTW** retrieves relevant records and answers with citations. When model generation is unavailable, it returns labeled source matches.

@@ -4,6 +4,7 @@ import {
   BookOpen,
   ChevronDown,
   MapPin,
+  Radio,
   ShieldCheck,
 } from "lucide-react";
 import EventAssessment from "./EventAssessment";
@@ -90,12 +91,13 @@ export function StoryLink({
   );
 }
 export function StoryReview({
-  event, open, saved, save, rank, location,
+  event, open, saved, save, rank, location, ask,
 }: {
   event: IntelEvent;
   open: (e: IntelEvent) => void;
   saved: boolean;
   save: () => void;
+  ask?: () => void;
   rank?: number;
   location: string;
 }) {
@@ -121,6 +123,7 @@ export function StoryReview({
       {rank !== undefined && (event.topicClaim || event.status === "speculation") && <span>Narrative tracking · <Status value={event.status}/></span>}
     </div>
     {rationale && <p className="sv-card-why">{rationale}</p>}
+    {ask && <button type="button" className="small-link sv-analyst-action" onClick={ask}><Radio size={14} aria-hidden="true"/> Ask analyst</button>}
     <details className="assessment-details sv-expand">
       <summary><span>Assessment &amp; sources</span><ChevronDown size={15} aria-hidden="true"/></summary>
       <div className="sv-card-body">
@@ -138,12 +141,13 @@ export function StoryReview({
 }
 
 export function ClaimReview({
-  event, open, saved, save,
+  event, open, saved, save, ask,
 }: {
   event: IntelEvent;
   open: (e: IntelEvent) => void;
   saved: boolean;
   save: () => void;
+  ask?: () => void;
 }) {
   const safe = sourceURL(event.url);
   const host = safe ? new URL(safe).hostname.replace(/^www\./,"") : "";
@@ -158,6 +162,7 @@ export function ClaimReview({
       <time dateTime={event.publishedAt} title={dateTime(event.publishedAt)}>{relative(event.publishedAt)}</time>
     </div>
     {event.summary && event.summary !== event.title && <p className="sv-card-why">{event.summary}</p>}
+    {ask && <button type="button" className="small-link sv-analyst-action" onClick={ask}><Radio size={14} aria-hidden="true"/> Ask analyst</button>}
     <details className="assessment-details sv-expand">
       <summary><span>Evidence review</span><EvidenceCounts e={event}/><ChevronDown size={15} aria-hidden="true"/></summary>
       <div className="sv-card-body">
