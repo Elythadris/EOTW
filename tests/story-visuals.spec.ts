@@ -161,3 +161,57 @@ test("source health filters count available, failed, pending and disabled provid
   await filters.getByRole("button", { name: "All 4", exact: true }).click();
   await expect(coverage.getByRole("heading", { level: 3 })).toHaveText(providers.map(provider => provider.name));
 });
+
+
+test("the expandable assessment follows citations and refreshes a revised story without navigation", async ({ page }) => {
+  await page.clock.install();
+  const records = [{ ...report }];
+  await mockSources(page, records);
+  const requests: string[] = [];
+  await page.route("**/api/assessment?**", route => {
+    const query = new URL(route.request().url()).searchParams;
+    requests.push(query.get("id") || "");
+    const revised = records[0].updatedAt !== last;
+    return route.fulfill({ json: {
+      eventId: report.id, mode: revised ? "sources" : "ai", updatedAt: records[0].updatedAt,
+      notice: revised ? "Review of the updated bulletin." : "The model selected explanations to examine.",
+      facts: [{text: "The agency published the advisory.", citationIds:["1"]}], allegations: [],
+      significance: [], implications: [], unknowns:["The duration is unknown."], watch: [],
+      hypotheses:[{ label:"Reported harbor conditions", explanation:"Check whether conditions changed.",
+        support:[{text:"The notice includes an observation.",citationIds:["1"]}], against:[], test:"Read the next bulletin." }],
+      citations:[{id:"1",title:"Publisher advisory",source:report.source,url:report.url}],
+    }});
+  });
+  await page.goto("/story/" + report.id);
+  const disclosure = page.locator(".event-investigation").filter({hasText:"Intelligence assessment"});
+  await expect(disclosure).toBeVisible();
+  expect(requests).toHaveLength(0);
+  await disclosure.locator("summary").click();
+  await expect(disclosure.getByText("AI-assisted assessment", {exact:true})).toBeVisible();
+  await expect(disclosure.getByText("No contrary evidence is indexed for this explanation.")).toBeVisible();
+  await expect(disclosure.getByRole("link", {name:/Source 1, National Weather Service/}).first()).toHaveAttribute("href", report.url);
+  records[0] = {...report, updatedAt:"2026-01-14T14:30:00Z"};
+  await page.clock.fastForward(45_500);
+  await expect(disclosure.getByText("Source-based assessment", {exact:true})).toBeVisible();
+  await expect(disclosure.getByText("Review of the updated bulletin.")).toBeVisible();
+  await expect(page).toHaveURL(new RegExp(report.id+"$"));
+  expect(requests).toEqual([report.id, report.id]);
+});
+
+test("Hot 24 reorders on a polling tick and keeps expired editions out of the list", async ({ page }) => {
+  const now = new Date("2026-01-14T15:00:00Z");
+  await page.clock.install({time:now});
+  const current = {...report, hotAt:"2026-01-14T14:00:00Z",rankReasons:["Publisher warning still in force."]};
+  const expired = {...current,id:"old-report",title:"Expired edition",hotAt:"2026-01-13T14:59:59Z"};
+  const rows = [expired,current];
+  await mockSources(page, rows);
+  await page.goto("/trending");
+  await expect(page.getByRole("link", {name:current.title})).toBeVisible();
+  await expect(page.getByRole("link", {name:expired.title})).toHaveCount(0);
+  await page.getByText("Assessment & sources",{exact:true}).click();
+  await expect(page.getByRole("list", {name:"Ranking reasons"})).toContainText(current.rankReasons[0]);
+  rows.unshift({...current,id:"new-report",title:"New advisory update",hotAt:"2026-01-14T15:00:30Z"});
+  await page.clock.fastForward(45_500);
+  await expect(page.locator(".sv-priority-card h3").first()).toHaveText("New advisory update");
+  await expect(page.getByRole("link", {name:expired.title})).toHaveCount(0);
+});

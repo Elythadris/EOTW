@@ -1,5 +1,6 @@
 import { DAY, fold, ranked } from "./model.mjs";
-import { annotate, incidentKey, narrativeHot } from "./detection.mjs";
+import { annotate, incidentKey } from "./detection.mjs";
+import { buildHot24 } from "./hot24.mjs";
 import { anomaliesFor } from "./baseline.mjs";
 
 const warningFor = e => /\bwarning\b/i.test(e.origin?.event || e.title);
@@ -68,7 +69,7 @@ export function retainEpisodeChanges(state,now) {
     if(newest && (!episodes[key] || newest.at>episodes[key].at || newest.at===episodes[key].at && newest.version>episodes[key].version)) episodes[key]=newest;
   }
 }
-export function signalDesk(live,state,health,now,location) {
+export function signalDesk(live,state,health,now,location,retired=[]) {
   const candidates=live.filter(e=>!e.transient && (!e.expiresAt || Date.parse(e.expiresAt)>now));
   const known=new Set(),recentlyChecked=new Set();
   for(const source of health) {
@@ -101,19 +102,14 @@ export function signalDesk(live,state,health,now,location) {
     const prior=state.signalEpisodes?.[incidentKey(e)];
     if (prior && fresh(prior.at,now,DAY)) latestByIncident.set(incidentKey(e),{eventId:e.id,at:prior.at,description:prior.description});
   }
-  const hotGroups=new Set(scored.filter(e=>e.intelligence.axes.acceleration>0 && (fresh(e.updatedAt,now,DAY) || e.observations?.changes?.some(c=>fresh(c.at,now,DAY)))).map(incidentKey));
-  const hotEvents=events.filter(e=>hotGroups.has(incidentKey(e)) || latestByIncident.has(incidentKey(e))).sort((a,b)=>b.intelligence.axes.acceleration-a.intelligence.axes.acceleration || b.intelligence.score-a.intelligence.score);
-  const hazardIds=new Set(hotEvents.map(e=>e.id));
-  for (const e of candidates) {
-    if(hazardIds.has(e.id) || known.has(e.id) && !recentlyChecked.has(e.id)) continue;
-    const trend=narrativeHot(e,now,location);
-    if(trend) hotEvents.push({...e,...trend});
-  }
+  const hotCandidates = [...live, ...retired].filter(e =>
+    e.source !== "National Weather Service" || !known.has(e.id) || recentlyChecked.has(e.id));
+  const hotEvents = buildHot24(hotCandidates, scored, now, location, collapseBulletins);
   const lastScan=state.lastSignalScan || state.updatedAt || null;
   const scopeOrder={local:0,us:1,global:2};
   events.sort((a,b)=>scopeOrder[a.scope]-scopeOrder[b.scope] || levels[b.intelligence.level]-levels[a.intelligence.level] || b.intelligence.score-a.intelligence.score || b.updatedAt.localeCompare(a.updatedAt));
   const canonical=new Map(events.map(e=>[incidentKey(e),e.id]));
   const escalations=[...latestByIncident].filter(([id])=>memberSet.has(id)).map(([id,c])=>({...c,eventId:canonical.get(id)})).sort((a,b)=>b.at.localeCompare(a.at));
   return {events,hotEvents,intelligence:{scanned:candidates.length,alerts:events.length,activeWarnings:events.filter(e=>e.source==="National Weather Service" && warningFor(e)).length,lastScan,regions:["local","us","global"].map(scope=>region(scope,events,health,lastScan,now,location)),
-    escalations,hotIds:hotEvents.map(e=>e.id),related:relatedReports(events),...anomaliesFor(state,now,health)}};
+    escalations,hotIds:hotEvents.filter(e=>!e.transient).map(e=>e.id),related:relatedReports(events),...anomaliesFor(state,now,health)}};
 }

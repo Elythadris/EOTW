@@ -1,6 +1,6 @@
 # Publish to the EOTW archive
 
-Publish an original report, investigation, prediction or correction through GitHub. The production collector checks the registry on the main branch every five minutes. The published article has a durable GitHub link, and the archive assigns it a shareable EOTW story URL.
+Publish an original report, investigation, prediction or correction through GitHub. The production collector checks the registry on the main branch every ten minutes. The published article has a durable GitHub link, and the archive assigns it a shareable EOTW story URL.
 
 1. Add the full article as Markdown under `editorial/reports/<slug>.md`. Include its headline, byline, publication time, reporting, evidence, and any material uncertainty. Readers can open this document from the EOTW story page.
 2. Add its metadata to the array in `editorial/records.json`. Commit the article and its entry together. Keep the original slug and publication timestamp for all future editions.

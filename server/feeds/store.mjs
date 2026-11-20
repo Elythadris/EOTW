@@ -1,4 +1,5 @@
 import { annotate, observe, incidentKey, linkCorrection, priorWarningAreas, observeExpansion } from "./detection.mjs";
+import { previousHotMembers, retiredHotMembers, readRetiredHot } from "./hot24.mjs";
 import { addPoll } from "./baseline.mjs";
 import { collapseBulletins, signalDesk, retainEpisodeChanges } from "./signal-desk.mjs";
 import { createHash } from "node:crypto";
@@ -31,7 +32,8 @@ export function sourceHealth(state,defs,now) {
     const late=entry.status === "ok" && now-Date.parse(entry.lastSuccess) > Math.max(20,def.minutes*3)*60000;
     return {id:def.id,name:def.name,status:def.disabled ? "disabled" : late ? "error" : entry.status,
       lastSuccess:entry.lastSuccess,detail:def.disabled || (late ? "Scheduled check overdue." : entry.detail || ""),
-      intervalMinutes:def.minutes,lastAttempt:entry.lastAttempt || null};
+      intervalMinutes:def.minutes,lastAttempt:entry.lastAttempt || null,
+      nextAttemptAt:!def.disabled && Number.isFinite(entry.nextDue) ? stamp(entry.nextDue) : null};
   });
 }
 function fingerprint(event) {
@@ -60,10 +62,24 @@ async function updateDay(store,day,changes) {
 async function processInBatches(items,size,fn) {
   for (let index=0;index<items.length;index+=size) await Promise.all(items.slice(index,index+size).map(fn));
 }
-export async function collect({store=repository(),now=Date.now(),defs=definitions(),load=fetchProvider}={}) {
+function nextSlot(now, minutes) {
+  const interval = minutes * 60_000;
+  return Math.floor(now / interval) * interval + interval;
+}
+function providerDue(def, entry, now) {
+  if (def.disabled) return false;
+  if (!entry) return true;
+  // An existing failure may carry a provider-issued Retry-After deadline.
+  if (entry.status === "error") return !(entry.nextDue > now);
+  const lastAttempt = Date.parse(entry.lastAttempt || "");
+  return !Number.isFinite(lastAttempt) || nextSlot(lastAttempt, def.minutes) <= now;
+}
+export async function collect({store=repository(),now=Date.now(),defs=definitions(),load=fetchProvider,nextScheduledAt=null}={}) {
+  const started = Date.now();
   if (!(await lease(store,now))) return {busy:true};
   const previous=await store.getWithMetadata(SNAPSHOT_KEY,{type:"json"});
   const state=checkSchema(previous?.data);
+  const priorHot = previousHotMembers(state, defs, now);
   // A pre-fallback snapshot has a single backoff for both feeds. Preserve the
   // original DOC deadline while allowing the independent Article List to run.
   const gdelt = state.providers.gdelt;
@@ -71,8 +87,8 @@ export async function collect({store=repository(),now=Date.now(),defs=definition
     gdelt.primaryRetryAfter = gdelt.nextDue;
     gdelt.nextDue = now;
   }
-  const due=defs.filter(def=>!def.disabled && (!state.providers[def.id] || (state.providers[def.id].nextDue || 0)<=now));
-  const result=await Promise.allSettled(due.map(def=>{
+  const due=defs.filter(def=>providerDue(def,state.providers[def.id],now));
+  const result=await Promise.allSettled(due.map(async def=>{
     const old=sourceState(state,def.id);
     const validators=(["nws-us","nws-hi","usgs","eonet"].includes(def.id) && old.signalSchema!==3) ? {...old,etag:null,modified:null} : old;
     return load(def,validators,{now});
@@ -92,15 +108,15 @@ export async function collect({store=repository(),now=Date.now(),defs=definition
   for (const [offset,def] of due.entries()) {
     const attempt=result[offset];
     const before=sourceState(state,def.id);
-    const entry={...before,lastAttempt:stamp(now),nextDue:Math.floor(now/300000)*300000+def.minutes*60000};
+    const entry={...before,lastAttempt:stamp(now),nextDue:nextSlot(now,def.minutes)};
     state.providers[def.id]=entry;
     if (attempt.status === "rejected") {
       const error=attempt.reason;
       entry.status="error";
-      if (def.id === "gdelt") entry.primaryRetryAfter = Math.max(before.primaryRetryAfter || 0, error?.retryAfter || 0);
+      if (def.id === "gdelt") entry.primaryRetryAfter = Math.max(before.primaryRetryAfter || 0, error?.primaryRetryAfter || 0);
       entry.failures=Math.min(6,(before.failures || 0)+1);
       entry.detail=error?.status ? "Upstream HTTP "+error.status : "Feed could not be retrieved or validated.";
-      entry.nextDue=Math.max(now+Math.min(360,def.minutes*2**(entry.failures-1))*60000,error?.retryAfter || 0);
+      entry.nextDue=Math.max(entry.nextDue,error?.retryAfter || 0);
       if (def.transient) entry.ids=[];
       continue;
     }
@@ -146,6 +162,7 @@ export async function collect({store=repository(),now=Date.now(),defs=definition
   }
   const activeIds=new Set(defs.filter(def=>!def.disabled).flatMap(def=>sourceState(state,def.id).ids || []));
   state.events=[...pool.values()].filter(e=>activeIds.has(e.id) && (now-Date.parse(e.updatedAt)<45*DAY || e.expiresAt && Date.parse(e.expiresAt)>now));
+  state.hotArchive = retiredHotMembers(priorHot, activeIds, defs, now);
   retainEpisodeChanges(state,now);
   const byDay=new Map();
   for (const event of changed.values()) {
@@ -156,8 +173,17 @@ export async function collect({store=repository(),now=Date.now(),defs=definition
   await processInBatches([...byDay.keys()],8,day=>updateDay(store,day,byDay.get(day)));
   state.days=[...new Set([...state.days,...byDay.keys()])].sort().reverse();
   if (successes) {state.updatedAt=stamp(now);state.lastSignalScan=state.updatedAt;}
+  const enabled=defs.filter(def=>!def.disabled).length;
+  const scan={
+    startedAt:stamp(now), finishedAt:stamp(now+Math.max(0,Date.now()-started)), nextScheduledAt,
+    configured:defs.length, enabled, checked:due.length, succeeded:successes,
+    failed:due.length-successes, deferred:enabled-due.length, changed:changed.size,
+    events:state.events.length, archiveDays:byDay.size, exampleArchivedId:changed.keys().next().value || null,
+  };
+  // The receipt becomes visible atomically with this snapshot, after the archive writes.
+  state.recentScans=[scan,...(state.recentScans || [])].slice(0,12);
   if (!await writeConditionally(store,SNAPSHOT_KEY,state,previous)) throw new Error("Collector snapshot superseded. Retry on next schedule.");
-  return {checked:due.length,succeeded:successes,changed:changed.size,events:state.events.length};
+  return scan;
 }
 function matches(event,params) {
   if (params.type && params.type !== "all" && event.editorialType !== params.type) return false;
@@ -221,7 +247,7 @@ export async function searchEvents(input={}, {store=repository(),now=Date.now(),
   params.limit=Math.max(1,Math.min(200,Number(params.limit) || 100));
   const state=checkSchema(await store.get(SNAPSHOT_KEY,{type:"json"}));
   const health=sourceHealth(state,defs,now);
-  const metadata={updatedAt:state.updatedAt,health};
+  const metadata={updatedAt:state.updatedAt,health,recentScans:state.recentScans || []};
   const active=new Set(defs.filter(def=>!def.disabled && (!def.transient || now-Date.parse(sourceState(state,def.id).lastSuccess)<20*60000)).flatMap(def=>sourceState(state,def.id).ids || []));
   const live=state.events.filter(e=>active.has(e.id));
   if (params.id) {
@@ -238,7 +264,10 @@ export async function searchEvents(input={}, {store=repository(),now=Date.now(),
   }
   if (params.view === "archive") return {...metadata,...await archivePage(store,state.days,params,now)};
   if (params.view==="signals" || params.view==="trending") {
-    const desk=signalDesk(live,state,health,now,params.location);
+    const retired = params.view === "trending"
+      ? await readRetiredHot(state.hotArchive, active, defs, now, day => store.get(dayKey(day), {type:"json"}))
+      : [];
+    const desk=signalDesk(live,state,health,now,params.location,retired);
     const selected=(params.view==="signals"?desk.events:desk.hotEvents).filter(e=>matches(e,params));
     const start=/^\d{1,6}$/.test(params.cursor || "") ? Number(params.cursor) : 0;
     return {...metadata,total:selected.length,...(params.view==="signals"?{intelligence:desk.intelligence}:{}),
@@ -247,7 +276,6 @@ export async function searchEvents(input={}, {store=repository(),now=Date.now(),
   }
   let events=live.filter(e=>(!e.expiresAt || Date.parse(e.expiresAt)>now) && (!e.transient || params.view === "rabbit" || params.scope === "conspiracy"))
     .filter(e=>params.view !== "rabbit" || e.topicClaim)
-    .filter(e=>params.view !== "trending" || now-Date.parse(e.updatedAt)<=DAY)
     .map(e=>ranked(e,now,params.location)).filter(e=>matches(e,params));
   const compare=(a,b)=>b.rank-a.rank || b.updatedAt.localeCompare(a.updatedAt) || a.id.localeCompare(b.id);
   events.sort(compare);

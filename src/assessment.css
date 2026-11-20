@@ -1,0 +1,29 @@
+.event-investigation { min-width:0; border:1px solid var(--line); border-radius:7px; background:var(--panel); color:var(--ink); }
+.event-investigation > summary { display:flex; align-items:center; gap:8px; min-height:44px; cursor:pointer; padding:10px 14px; list-style:none; font-weight:600; font-size:.94rem; }
+.event-investigation > summary::-webkit-details-marker { display:none; }
+.event-investigation > summary svg { color:var(--sea); flex:none; }
+.event-investigation > summary svg:last-child { margin-left:auto; }
+.event-investigation[open] > summary svg:last-child { transform:rotate(180deg); }
+.sv-card-body .event-investigation { margin:12px 0; }
+.investigation-body, .investigation-status { padding:14px; border-top:1px solid var(--subline); }
+.investigation-body, .investigation-status, .investigation-body p, .investigation-body li { color:var(--muted); font:400 .87rem/1.6 var(--body); overflow-wrap:anywhere; }
+.investigation-body section { margin-top:17px; }
+.investigation-body h4, .investigation-body h5 { margin:0 0 4px; color:var(--ink); font:650 .95rem/1.45 var(--body); }
+.investigation-body p, .investigation-body ul, .investigation-body ol { margin:0; }
+.investigation-body ul { padding-left:1.2em; }
+.investigation-body li + li { margin-top:5px; }
+.investigation-mode { display:flex; align-items:baseline; flex-wrap:wrap; gap:4px 12px; }
+.investigation-mode strong, .assessment-references span { color:var(--sea); }
+.investigation-mode time { font:.7rem/1.5 var(--mono); }
+.investigation-body .assessment-note { margin-top:5px; }
+.assessment-hypothesis { border-left:2px solid #567985; padding:3px 0 4px 12px; margin:10px 0 14px; }
+.assessment-hypothesis div { margin-top:7px; }
+.assessment-hypothesis div > strong { display:block; font-size:.8rem; color:var(--ink); }
+.assessment-cite { color:var(--sea); margin-right:3px; font:500 .72rem/1.4 var(--mono); text-decoration:underline; }
+.assessment-references { list-style:none; padding:0; }
+.assessment-references a { text-decoration:underline; text-underline-offset:2px; }
+
+.scan-receipts { padding-left:1.45em; }
+.investigation-body .scan-receipts li { margin-top:10px; }
+.scan-receipts strong { color:var(--ink); }
+.scan-receipts a { color:var(--sea); text-decoration:underline; }

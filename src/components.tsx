@@ -26,6 +26,7 @@ import {
   type Scope,
 } from "./types";
 import "./story-visuals.css";
+import EventAssessment from "./EventAssessment";
 
 export function Modal({
   title,
@@ -457,13 +458,14 @@ function StoryChronology({ e }: { e: IntelEvent }) {
 
 
 export function ArticleDetail({
-  e, saved, save, ask, investigate,
+  e, saved, save, ask, investigate, location,
 }: {
   e: IntelEvent;
   saved: boolean;
   save: () => void;
   ask: () => void;
   investigate: (q: string) => void;
+  location: string;
 }) {
   const bulletins = (e.bulletins || []).filter(notice => sourceURL(notice.url));
   const seen = new Set<string>();
@@ -517,6 +519,7 @@ export function ArticleDetail({
             </a>)}</div>
           </details>
         </section>}
+        <EventAssessment event={e} location={location}/>
         <StoryChronology key={e.id} e={e}/>
         <section className="sv-panel">
           <header className="sv-panel-header"><h2><Layers size={18} aria-hidden="true"/>Evidence comparison</h2></header>

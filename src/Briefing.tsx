@@ -27,6 +27,7 @@ import { useFeed, useSituation, type PrefsState } from "./data";
 import { ClaimReview, OpsPanel, StoryLink, StoryReview } from "./Operations";
 import {
   dateTime,
+  inHotWindow,
   relative,
   staleScan,
   sourceURL,
@@ -166,6 +167,7 @@ export default function Briefing({
     location: where,
     limit: "4",
   });
+  const hotReports = hot.data.events.filter(e => inHotWindow(e, Date.now()));
   const claims = useFeed({
     view: "rabbit",
     scope: "all",
@@ -578,6 +580,7 @@ export default function Briefing({
                 .slice(0, limit)
                 .map((e) => (
                   <StoryReview
+                    location={where}
                     key={e.id}
                     event={e}
                     open={open}
@@ -705,8 +708,8 @@ export default function Briefing({
           icon={<TrendingUp size={18} />}
           action={action("View all", () => go("trending"))}
         >
-          {hot.data.events.length ? (
-            hot.data.events.slice(0, 3).map((e, i) => (
+          {hotReports.length ? (
+            hotReports.slice(0, 3).map((e, i) => (
               <div className="hot-line" key={e.id}>
                 <span>{String(i + 1).padStart(2, "0")}</span>
                 <div>

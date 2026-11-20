@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { record, ranked, link, DAY, HOUR } from "../server/feeds/model.mjs";
-import { usgs, nws, rss, fetchProvider } from "../server/feeds/providers.mjs";
+import { usgs, nws, rss, fetchProvider, definitions } from "../server/feeds/providers.mjs";
 import { collect, searchEvents, SNAPSHOT_KEY } from "../server/feeds/store.mjs";
 import { createFeedHandler } from "../netlify/functions/feed.mjs";
 
@@ -305,4 +305,57 @@ test("existing DOC backoff permits one independent fallback check after upgrade"
   assert.equal(result.succeeded, 1);
   const state = await store.get(SNAPSHOT_KEY);
   assert.equal(state.providers.gdelt.primaryRetryAfter, due);
+});
+
+test("ten-minute scans align to UTC, write receipts, and isolate rate-limited and failing publishers", async () => {
+  const { config } = await import("../netlify/functions/collect.mjs");
+  assert.equal(config.schedule, "*/10 * * * *");
+  assert.ok(definitions({}).every(source => source.minutes === 10));
+  const store=memory();
+  const minute=60_000;
+  const defs=[
+    {id:"healthy", name:"Healthy", minutes:10},
+    {id:"limited", name:"Limited", minutes:10},
+    {id:"offline", name:"Offline", minutes:10},
+    {id:"disabled", name:"Off", minutes:10,disabled:"Turned off"},
+  ];
+  // Existing production data may still advertise a six-hour next check.
+  await store.setJSON(SNAPSHOT_KEY, {
+    version:1, events:[], days:[], providers:{
+      healthy:{status:"ok",lastSuccess:new Date(clock-12*minute).toISOString(),
+        lastAttempt:new Date(clock-12*minute).toISOString(),nextDue:clock+6*HOUR,ids:[]},
+    },updatedAt:null,
+  });
+  const nextScheduledAt=new Date(clock+10*minute).toISOString();
+  const item=fixture();
+  const checks=[];
+  const load=source=>{
+    checks.push(source.id);
+    if (source.id==="limited") throw Object.assign(new Error("Throttled"),{status:429,retryAfter:clock+25*minute});
+    if (source.id==="offline") throw new Error("Unavailable");
+    return {events:[item]};
+  };
+  const first=await collect({store,defs,now:clock+12000,load,nextScheduledAt});
+  assert.deepEqual(checks,["healthy","limited","offline"]);
+  assert.equal(first.succeeded,1);
+  assert.equal(first.failed,2);
+  assert.equal(first.exampleArchivedId,item.id);
+  assert.equal(first.archiveDays,1);
+  assert.equal(first.nextScheduledAt,nextScheduledAt);
+  const partition=await store.get("v1/days/"+item.id.slice(0,10));
+  assert.ok(partition.some(row=>row.id===first.exampleArchivedId));
+
+  checks.length=0;
+  const second=await collect({store,defs,now:clock+10*minute+1000,load});
+  assert.deepEqual(checks,["healthy","offline"]);
+  assert.equal(second.deferred,1);
+  assert.equal(second.changed,0);
+  const at=clock+20*minute+2000;
+  const third=await collect({store,defs,now:at,load:()=>{throw new Error("offline");}});
+  const feed=await searchEvents({view:"signals"},{store,defs,now:at});
+  assert.deepEqual(feed.recentScans.map(s=>s.startedAt),[third,second,first].map(s=>s.startedAt));
+  assert.equal(feed.intelligence.lastScan,second.startedAt);
+  assert.equal(third.succeeded,0);
+  assert.equal(third.exampleArchivedId,null);
+  assert.equal(feed.health.find(s=>s.id==="limited").nextAttemptAt,new Date(clock+25*minute).toISOString());
 });

@@ -48,6 +48,7 @@ import Research from "./Research";
 import Watchlist, { LocationForm } from "./Watchlist";
 import {
   dateTime,
+  inHotWindow,
   relative,
   staleScan,
   type EditorialType,
@@ -225,7 +226,7 @@ export default function App() {
     { view: "signals", scope: "all", location: prefs.location },
     prefs.notifications && page !== "briefing",
   );
-  const events = feed.data.events;
+  const events = page === "trending" ? feed.data.events.filter(e => inHotWindow(e, Date.now())) : feed.data.events;
   const selected = isStory ? events.find((e) => e.id === id) : undefined;
   const navigate = useCallback((path: string, keepPosition = false) => {
     if (window.location.pathname + window.location.search !== path)
@@ -374,7 +375,7 @@ export default function App() {
   const last = feed.data.intelligence?.lastScan || feed.data.updatedAt;
   const stale =
     last &&
-    (requestView === "signals"
+    ((requestView === "signals" || requestView === "trending")
       ? staleScan(last)
       : Date.now() - Date.parse(last) > 75 * 60_000);
   const loadMore = feed.data.nextCursor && (
@@ -401,6 +402,7 @@ export default function App() {
             />
           ) : page === "trending" ? (
             <StoryReview
+              location={prefs.location}
               key={e.id}
               event={e}
               open={open}
@@ -773,7 +775,7 @@ export default function App() {
               <Watchlist state={prefsState} open={open} notify={setMessage} />
             )}
             {page === "health" && (feed.data.health.length
-              ? <SourceCoverage sources={feed.data.health}/>
+              ? <SourceCoverage sources={feed.data.health} scans={feed.data.recentScans || []} lastSuccess={feed.data.updatedAt}/>
               : feed.busy ? <Skeleton/> : <NoItems title="Provider checks pending" detail="The collector records the outcome of each source check."/>)}
             {isStory && (
               <>
@@ -787,6 +789,7 @@ export default function App() {
                 </a>
                 {selected ? (
                   <ArticleDetail
+                    location={prefs.location}
                     e={selected}
                     saved={prefs.saved.includes(selected.id)}
                     save={() => save(selected)}

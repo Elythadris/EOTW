@@ -6,6 +6,7 @@ import {
   MapPin,
   ShieldCheck,
 } from "lucide-react";
+import EventAssessment from "./EventAssessment";
 import { EvidenceComparison, EvidenceCounts, PriorityStamp, SaveButton, ScoreBreakdown, Status } from "./components";
 import { dateTime, relative, sourceURL, type IntelEvent } from "./types";
 
@@ -89,13 +90,14 @@ export function StoryLink({
   );
 }
 export function StoryReview({
-  event, open, saved, save, rank,
+  event, open, saved, save, rank, location,
 }: {
   event: IntelEvent;
   open: (e: IntelEvent) => void;
   saved: boolean;
   save: () => void;
   rank?: number;
+  location: string;
 }) {
   const assessment = event.intelligence;
   const source = sourceURL(event.url);
@@ -111,7 +113,9 @@ export function StoryReview({
     <div className="sv-meta">
       {event.location && <span><MapPin size={13} aria-hidden="true"/>{event.location}</span>}
       <span>{event.source}</span>
-      <time dateTime={event.updatedAt} title={dateTime(event.updatedAt)}>{relative(event.updatedAt)}</time>
+      {rank !== undefined && event.hotAt
+        ? <time dateTime={event.hotAt} title={dateTime(event.hotAt)}>Qualifying report {relative(event.hotAt)}</time>
+        : <time dateTime={event.updatedAt} title={dateTime(event.updatedAt)}>{relative(event.updatedAt)}</time>}
       {!!event.bulletinCount && event.bulletinCount > 1 && <span className="sv-group">{event.bulletinCount} area bulletins</span>}
       {rank !== undefined && (event.topicClaim || event.status === "speculation") && <span>Narrative tracking · <Status value={event.status}/></span>}
     </div>
@@ -121,7 +125,9 @@ export function StoryReview({
       <div className="sv-card-body">
         {!assessment?.why && event.summary && <p>{event.summary}</p>}
         {assessment?.monitor && <div className="sv-monitor"><strong>Monitor next</strong><p>{assessment.monitor}</p></div>}
-        {assessment ? <ScoreBreakdown e={event}/> : !!event.rankReasons?.length && <ul className="sv-reasons">{event.rankReasons.map((reason,i)=><li key={i}>{reason}</li>)}</ul>}
+        {assessment && <ScoreBreakdown e={event}/>}
+        {(rank !== undefined || !assessment) && !!event.rankReasons?.length && <ul className="sv-reasons" aria-label="Ranking reasons">{event.rankReasons.map((reason,i)=><li key={i}>{reason}</li>)}</ul>}
+        <EventAssessment event={event} location={location}/>
         <div className="sv-card-origin"><Status value={event.status}/>
           {source && <a href={source} target="_blank" rel="noreferrer">Original source<ArrowUpRight size={13} aria-hidden="true"/></a>}
         </div>

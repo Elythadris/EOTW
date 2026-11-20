@@ -22,7 +22,8 @@ export function createFeedHandler(search = searchEvents) {
     try {
       const result = await search(params);
       const social =
-        params.view === "rabbit" || params.scope === "conspiracy" || params.id;
+        params.view === "rabbit" || params.scope === "conspiracy" || params.id ||
+        result.events.some(e => e.source === "Reddit");
       const timeSensitive = params.view === "signals" || params.view === "trending";
       return json(
         result,

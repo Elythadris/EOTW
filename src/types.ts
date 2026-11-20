@@ -107,6 +107,7 @@ export interface IntelEvent {
   severity: "high" | "moderate" | "routine";
   sources: { name: string; url: string }[];
   timeline: { at: string; text: string }[];
+  hotAt?: string;
   rank: number;
   rankReasons: string[];
 }
@@ -117,8 +118,26 @@ export interface SourceHealth {
   lastSuccess: string | null;
   detail?: string;
   intervalMinutes?: number;
+  lastAttempt?: string | null;
+  nextAttemptAt?: string | null;
+}
+export interface ScanReceipt {
+  startedAt: string;
+  finishedAt: string;
+  nextScheduledAt: string | null;
+  configured: number;
+  enabled: number;
+  checked: number;
+  succeeded: number;
+  failed: number;
+  deferred: number;
+  changed: number;
+  events: number;
+  archiveDays: number;
+  exampleArchivedId: string | null;
 }
 export interface Feed {
+  recentScans?: ScanReceipt[];
   intelligence?: Intelligence;
   events: IntelEvent[];
   health: SourceHealth[];
@@ -211,4 +230,9 @@ export function weatherHeadline(event: IntelEvent) {
   const match = /^(.+?) issued ([A-Z][a-z]+ \d{1,2} at .+?)(?: until (.+?))? by NWS (.+)$/i.exec(event.title);
   if (!match) return null;
   return { name: match[1], issued: match[2], end: match[3], office: match[4] };
+}
+
+export function inHotWindow(event: IntelEvent, now: number) {
+  const at = Date.parse(event.hotAt || event.publishedAt);
+  return Number.isFinite(at) && at <= now && now - at < 24 * 60 * 60_000;
 }

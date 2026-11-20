@@ -6,6 +6,8 @@ import { editorialRows } from "./editorial.mjs";
 import { XMLParser } from "fast-xml-parser";
 import { date, plain, record } from "./model.mjs";
 
+export const SCAN_MINUTES = 10;
+
 const agent = "EOTW/1.0 (+https://github.com/Elythadris/EOTW)";
 const xml = new XMLParser({
   ignoreAttributes: true,
@@ -247,11 +249,10 @@ function guardian(text) {
     status: "developing",
   }));
 }
-const rssSource = (id, name, url, minutes, options) => ({
+const rssSource = (id, name, url, options) => ({
   id,
   name,
   url,
-  minutes,
   parse: (text) => rss(text, { ...options, name }),
 });
 const query =
@@ -274,7 +275,6 @@ export function definitions(env = process.env) {
     {
       id: "nws-hi",
       name: "NWS Hawaiʻi",
-      minutes: 5,
       url: "https://api.weather.gov/alerts/active?area=HI&status=actual",
       parse: nws,
       replace: true,
@@ -282,7 +282,6 @@ export function definitions(env = process.env) {
     {
       id: "nws-us",
       name: "NWS severe U.S. alerts",
-      minutes: 5,
       url: "https://api.weather.gov/alerts/active?severity=Severe%2CExtreme&status=actual",
       parse: nws,
       replace: true,
@@ -290,7 +289,6 @@ export function definitions(env = process.env) {
     {
       id: "usgs",
       name: "USGS earthquakes",
-      minutes: 5,
       url: "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/2.5_day.geojson",
       parse: usgs,
       replace: true,
@@ -298,7 +296,6 @@ export function definitions(env = process.env) {
     {
       id: "eonet",
       name: "NASA EONET",
-      minutes: 30,
       url: "https://eonet.gsfc.nasa.gov/api/v3/events?status=open&limit=40&days=14",
       parse: eonet,
       replace: true,
@@ -307,7 +304,6 @@ export function definitions(env = process.env) {
       "maui",
       "County of Maui",
       "https://www.mauicounty.gov/RSSFeed.aspx?ModID=1&CID=0",
-      15,
       {
         location: "Maui County, Hawaiʻi",
         county: "15009",
@@ -321,7 +317,6 @@ export function definitions(env = process.env) {
       "hiema",
       "Hawaiʻi Emergency Management Agency",
       "https://dod.hawaii.gov/hiema/feed/",
-      15,
       {
         location: "Hawaiʻi",
         state: "HI",
@@ -333,7 +328,6 @@ export function definitions(env = process.env) {
     {
       id: "editorial",
       name: "EOTW editorial desk",
-      minutes: 5,
       url: "https://raw.githubusercontent.com/Elythadris/EOTW/refs/heads/main/editorial/records.json",
       maxBytes: 400_000,
       parse: editorialRows,
@@ -343,19 +337,18 @@ export function definitions(env = process.env) {
       ["maui-water", "Maui County - News Flash - Water Department", "Water-Department-7"],
       ["maui-road", "Maui County - News Flash - Road Notifications", "Road-Notifications-3"],
     ].map(([id, name, channel]) => rssSource(
-      id, name, "https://www.mauicounty.gov/RSSFeed.aspx?CID=" + channel + "&ModID=1", 15,
+      id, name, "https://www.mauicounty.gov/RSSFeed.aspx?CID=" + channel + "&ModID=1",
       { location: "Maui County, Hawaiʻi", county: "15009", scope: "us", category: "County bulletin", official: true },
     )),
     {
       id: "gdacs", name: "Global Disaster Awareness and Coordination System, GDACS",
-      url: "https://www.gdacs.org/xml/rss.xml", parse: gdacs, minutes: 30, replace: true, maxBytes: 2100000,
+      url: "https://www.gdacs.org/xml/rss.xml", parse: gdacs, replace: true, maxBytes: 2100000,
     },
-    rssSource("un-geneva", "United Nations Office at Geneva", "https://www.ungeneva.org/news-media/press-items-list/rss.xml", 60,
+    rssSource("un-geneva", "United Nations Office at Geneva", "https://www.ungeneva.org/news-media/press-items-list/rss.xml",
       {scope:"global",category:"UN press bulletin",official:true,limit:25}),
     {
       id: "federal",
       name: "Federal Register",
-      minutes: 60,
       url: "https://www.federalregister.gov/api/v1/documents.json?per_page=20&order=newest",
       parse: federal,
     },
@@ -363,13 +356,11 @@ export function definitions(env = process.env) {
       "scicheck",
       "FactCheck.org · SciCheck",
       "https://www.factcheck.org/scicheck/feed/",
-      60,
       { scope: "us", category: "Fact check", topicClaim: true },
     ),
     {
       id: "uap-records",
       name: "Federal Register UAP records",
-      minutes: 360,
       url: "https://www.federalregister.gov/api/v1/documents.json?conditions%5Bterm%5D=%22unidentified%20anomalous%20phenomena%22&order=newest&per_page=10",
       parse: (text) =>
         federal(text).map((item) => ({
@@ -382,7 +373,6 @@ export function definitions(env = process.env) {
       "justice",
       "U.S. Department of Justice",
       "https://www.justice.gov/news/rss?type=press_release",
-      30,
       {
         country: "US",
         scope: "us",
@@ -394,11 +384,10 @@ export function definitions(env = process.env) {
     {
       id: "conversation",
       name: "The Conversation · U.S. edition",
-      minutes: 30,
       url: "https://theconversation.com/us/articles.atom",
       parse: conversation,
     },
-    rssSource("voices", "Global Voices", "https://globalvoices.org/feed/", 30, {
+    rssSource("voices", "Global Voices", "https://globalvoices.org/feed/", {
       scope: "global",
       category: "World",
       byline: true,
@@ -406,14 +395,12 @@ export function definitions(env = process.env) {
     {
       id: "gdelt",
       name: "GDELT news discovery",
-      minutes: 30,
       url: endpoint,
       parse: gdelt,
     },
     {
       id: "guardian",
       name: "The Guardian Open Platform",
-      minutes: 30,
       url:
         "https://content.guardianapis.com/search?" +
         new URLSearchParams({
@@ -431,7 +418,6 @@ export function definitions(env = process.env) {
     {
       id: "reddit",
       name: "Reddit discussion links",
-      minutes: 15,
       replace: true,
       transient: true,
       disabled:
@@ -444,6 +430,7 @@ export function definitions(env = process.env) {
     },
   ].map((provider) => ({
     ...provider,
+    minutes: SCAN_MINUTES,
     disabled: disabled.has(provider.id)
       ? "Turned off by the site operator."
       : provider.disabled,
@@ -569,12 +556,19 @@ export async function fetchProvider(
   state = {},
   { fetcher = fetch, now = Date.now(), env = process.env } = {},
 ) {
+  // Bound the entire provider chain, including retries, OAuth, alternate feeds and bodies.
+  // Netlify scheduled invocations must also commit the archive within their 30-second limit.
+  const budget = AbortSignal.timeout(12_000);
+  const boundedFetch = (url, init) => fetcher(url, {
+    ...init,
+    signal: AbortSignal.any([budget, init.signal]),
+  });
   const headers = { "User-Agent": agent, ...provider.headers };
   if (state.etag) headers["If-None-Match"] = state.etag;
   if (state.modified) headers["If-Modified-Since"] = state.modified;
   if (provider.id === "reddit")
     return {
-      events: (await reddit(env, fetcher))
+      events: (await reddit(env, boundedFetch))
         .map((v) => record(v, now))
         .filter(Boolean),
     };
@@ -582,7 +576,7 @@ export async function fetchProvider(
     const response = await request(
       provider.url,
       { headers, redirect: provider.headers ? "error" : "follow" },
-      fetcher,
+      boundedFetch,
     );
     if (response.status === 304) return { unchanged: true };
     const raw = provider.parse(await body(response, provider.maxBytes), now);
@@ -602,7 +596,7 @@ export async function fetchProvider(
   const rangeHeaders = { "User-Agent": agent, Range: "bytes=0-" + (galBytes - 1) };
   if (state.galEtag) rangeHeaders["If-None-Match"] = state.galEtag;
   try {
-    const response = await request(galUrl, { headers: rangeHeaders }, fetcher);
+    const response = await request(galUrl, { headers: rangeHeaders }, boundedFetch);
     const detail = "GDELT DOC unavailable. Serving a topical sample from the GDELT Article List RSS feed.";
     if (response.status === 304) return { unchanged: true, primaryRetryAfter, detail };
     const length = Number(response.headers.get("content-length"));
@@ -617,7 +611,7 @@ export async function fetchProvider(
     return { events, primaryRetryAfter, galEtag: response.headers.get("etag"), detail,
       etag: state.etag || null, modified: state.modified || null };
   } catch (error) {
-    if (primaryRetryAfter > 0) error.retryAfter = Math.max(error.retryAfter || 0, primaryRetryAfter);
+    error.primaryRetryAfter = primaryRetryAfter;
     throw error;
   }
 }

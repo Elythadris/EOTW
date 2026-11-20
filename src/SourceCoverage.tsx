@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Activity, CircleAlert, CircleCheck, CircleDashed, CircleSlash } from "lucide-react";
-import { dateTime, relative, type SourceHealth } from "./types";
+import { dateTime, relative, type ScanReceipt, type SourceHealth } from "./types";
 
 const states = [
   { key: "ok", label: "Healthy", Icon: CircleCheck },
@@ -10,7 +10,12 @@ const states = [
 ] as const;
 type Filter = SourceHealth["status"] | "all";
 
-export default function SourceCoverage({ sources }: { sources: SourceHealth[] }) {
+export default function SourceCoverage({ sources, scans, lastSuccess }: {
+  sources: SourceHealth[];
+  scans: ScanReceipt[];
+  lastSuccess: string | null;
+}) {
+  const latest = scans[0];
   const [filter, setFilter] = useState<Filter>("all");
   const groups = states.map(state => ({ ...state, count: sources.filter(row => row.status === state.key).length }));
   const healthy = groups[0].count;
@@ -37,6 +42,19 @@ export default function SourceCoverage({ sources }: { sources: SourceHealth[] })
           </div>
         </div>
       </div>
+      {latest && <details className="event-investigation scan-history">
+        <summary><Activity size={16} aria-hidden="true"/><span>Scheduled scan history</span></summary>
+        <div className="investigation-body">
+          <p>Every 10 minutes, UTC. {lastSuccess && <>Last successful scan <time dateTime={lastSuccess}>{new Date(lastSuccess).toUTCString()}</time>.</>}</p>
+          <ol className="scan-receipts">{scans.map(scan => <li key={scan.startedAt}>
+            <strong><time dateTime={scan.finishedAt}>{new Date(scan.finishedAt).toUTCString()}</time></strong>
+            <p>{scan.succeeded} of {scan.checked} source checks succeeded. {scan.changed} archive {scan.changed === 1 ? "record" : "records"} written.
+              {scan.failed > 0 && " " + scan.failed + " failed."}
+              {scan.deferred > 0 && " " + scan.deferred + " deferred."}</p>
+            {scan.exampleArchivedId && <a href={"/story/" + encodeURIComponent(scan.exampleArchivedId)}>Inspect an archived report</a>}
+          </li>)}</ol>
+        </div>
+      </details>}
       <div className="source-index">
         <div className="source-index-heading"><Activity size={18}/><h2>Provider status</h2>
           <span aria-live="polite">{visible.length} {visible.length === 1 ? "source" : "sources"}</span>
@@ -52,7 +70,9 @@ export default function SourceCoverage({ sources }: { sources: SourceHealth[] })
                 {row.lastSuccess
                   ? <time dateTime={row.lastSuccess} title={dateTime(row.lastSuccess)}>{relative(row.lastSuccess)}</time>
                   : <strong>None recorded</strong>}
-                {row.intervalMinutes && <small>Checks every {row.intervalMinutes} min</small>}
+                {row.status !== "disabled" && row.intervalMinutes && <small>Checks every {row.intervalMinutes} min</small>}
+                {row.status === "error" && row.lastAttempt && <small>Last attempt {relative(row.lastAttempt)}</small>}
+                {row.status === "error" && row.nextAttemptAt && <small>Next eligible check {dateTime(row.nextAttemptAt)}</small>}
               </div>
             </li>;
           })}

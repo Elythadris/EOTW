@@ -45,7 +45,8 @@ test("weather records preserve upstream geometry, distinct zones, and episode id
   assert.equal(result.intelligence.alerts,1);
   assert.equal(result.intelligence.activeWarnings,1);
   assert.equal(result.events[0].bulletins.length,2);
-  assert.equal(result.intelligence.hotIds.length,0);
+  assert.equal(result.intelligence.hotIds.length,1);
+  assert.equal(result.hotEvents[0].bulletinCount,2);
 });
 test("updates require comparable scans and a material source change; minor edits keep the notification key",()=>{
   const first=quake(5.8);const old=observe(null,first,first,now-HOUR,true);
@@ -95,7 +96,10 @@ test("baseline excludes replay and outages, compares complete matching UTC hours
   days["2026-06-15"]={usgs:{slots:Array(24).fill(4095),counts:[7,...Array(23).fill(0)],samples:[{id:row.id,hour:0}]}};
   assert.equal(anomaliesFor({baselineDays:days},now,[ok("usgs")]).anomalies.length,1);
   assert.equal(anomaliesFor({baselineDays:days},now,[]).anomalies.length,0);
-  days["2026-06-10"].usgs.slots[19]=0;
+  // Old five-minute histories and the new ten-minute cadence share a coverage basis.
+  days["2026-06-10"].usgs.slots.fill(0b010101010101);
+  assert.equal(anomaliesFor({baselineDays:days},now,[ok("usgs")]).anomalies.length,1);
+  days["2026-06-10"].usgs.slots[19]=0b000011111111;
   assert.equal(anomaliesFor({baselineDays:days},now,[ok("usgs")]).anomalies.length,0);
 });
 test("only editor-supplied cited findings acquire an evidence label",()=>{
@@ -115,7 +119,8 @@ test("credible accelerating narrative coverage stays out of threat counts",()=>{
   const joined=linkCorrection(correctionEvent,source,now,true);
   const result=desk([source,joined]);
   assert.equal(result.intelligence.alerts,0);
-  assert.equal(result.hotEvents.length,1);
+  assert.equal(result.hotEvents.length,2);
+  assert.equal(result.hotEvents[0].id,joined.id);
   assert.equal(result.hotEvents[0].narrativeTrend,true);
   assert.equal(result.hotEvents[0].intelligence,undefined);
   assert.equal(linkCorrection(correctionEvent,source,now,false).observations.changes.length,0);

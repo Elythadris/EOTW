@@ -49,3 +49,13 @@ test("refuses an unbounded full-file response", async () => {
     now, fetcher: async () => new Response("full dataset", { headers: { "Content-Length": "2000000" } }),
   }), /bounded request/);
 });
+
+test("a quota on GDELT DOC does not postpone recovery of its independent Article List", async () => {
+  const primaryRetryAfter=now+2*3600_000;
+  await assert.rejects(fetchProvider(provider,{primaryRetryAfter},{
+    now,fetcher:async url=>{
+      assert.equal(url,galUrl);
+      return new Response(null,{status:404});
+    },
+  }),error=>error.status===404 && error.primaryRetryAfter===primaryRetryAfter && !error.retryAfter);
+});

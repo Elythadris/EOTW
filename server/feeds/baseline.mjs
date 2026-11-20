@@ -7,7 +7,12 @@ const series = {
   "nws-hi": {label:"Hawaiʻi NWS warning episodes",accepts:e=>e.origin?.episode && e.origin.issued && /\bwarning\b/i.test(e.origin.event)},
 };
 const dateKey = time => new Date(time).toISOString().slice(0,10);
-const bits = n => { let count=0; while(n){count+=n&1;n>>=1;} return count; };
+// Preserve the persisted five-minute bitmap and count distinct ten-minute windows.
+function coversHour(mask) {
+  let windows=0;
+  for (let slot=0;slot<12;slot+=2) if (mask & (3 << slot)) windows++;
+  return windows>=5;
+}
 const median = numbers => {
   const values=[...numbers].sort((a,b)=>a-b);
   return (values[Math.floor((values.length-1)/2)] + values[Math.floor(values.length/2)])/2;
@@ -54,9 +59,9 @@ export function anomaliesFor(state,now,health) {
   for(const [name,kind] of Object.entries(series)) {
     const current=days[today]?.[name];
     const history=Object.keys(days).filter(d=>d<today && d>=dateKey(now-14*DAY))
-      .map(d=>days[d][name]).filter(d=>d?.slots?.length===24 && d.slots.every(mask=>bits(mask)>=10));
+      .map(d=>days[d][name]).filter(d=>d?.slots?.length===24 && d.slots.every(coversHour));
     best=Math.max(best,history.length);
-    if(!activeHealth.has(name) || history.length<7 || !current || completed<3 || current.slots.slice(0,completed).some(mask=>bits(mask)<10)) continue;
+    if(!activeHealth.has(name) || history.length<7 || !current || completed<3 || !current.slots.slice(0,completed).every(coversHour)) continue;
     ready++;
     const total=row=>row.counts.slice(0,completed).reduce((a,b)=>a+b,0);
     const numbers=history.map(total), center=median(numbers), mad=median(numbers.map(n=>Math.abs(n-center)));
@@ -68,6 +73,6 @@ export function anomaliesFor(state,now,health) {
   }
   let baselineNote=ready ? "Comparisons use matched UTC hours and well-covered prior days. Counts describe monitored reports, not a forecast or a probability." :
     best<7 ? "Baseline warming up: "+best+" of 7 required complete, adequately sampled UTC days for the best-covered series." :
-    "No comparable window yet. Each series needs three completed UTC hours today, recent source health and at least 10 of 12 checks in every compared hour.";
+    "No comparable window yet. Each series needs three completed UTC hours today, recent source health and successful checks in at least five of six ten-minute windows in every compared hour.";
   return {anomalies,baselineNote};
 }
