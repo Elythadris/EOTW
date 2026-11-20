@@ -22,6 +22,10 @@ export default function WorldDesk({events,focusScope,scanAt,location,saved,onAsk
   const report = events.find(event => event.id === picked);
   const namedArea = report ? report.location : location;
   const source = report && sourceURL(report.url);
+  const sourcePoint = report && report.coordinatePrecision === "source-point" &&
+    ["Weather", "Earthquake", "Natural event"].includes(report.category) &&
+    Number.isFinite(report.lat) && Number.isFinite(report.lon);
+  const weatherPlace = sourcePoint ? `${report.lat}, ${report.lon}` : namedArea;
   const tracking = !!report && saved.includes(report.id);
   return <div className="world-desk">
     <div className="panel full-map">
@@ -56,7 +60,10 @@ export default function WorldDesk({events,focusScope,scanAt,location,saved,onAsk
         </div>
         <EventAssessment event={report} location={location}/>
       </> : <div className="world-empty"><p>Select a marker to inspect the report, compare sources, or track it in your watchlist.</p></div>}
-      <button className="world-weather" onClick={() => weather(region)}><CloudRain size={15} aria-hidden="true"/> Weather for {region}</button>
+      {weatherPlace && <button className="world-weather" onClick={() => weather(weatherPlace)}>
+        <CloudRain size={15} aria-hidden="true"/> {namedArea ? "Weather for " + namedArea : "Weather near this marker"}
+      </button>}
     </section>
   </div>;
 }
+
