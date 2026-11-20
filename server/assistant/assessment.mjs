@@ -17,7 +17,7 @@ async function compare(material, context, {storage,model,permit,env,clock}) {
   const modelCall = model(env,context,{assessment:true});
   if (!modelCall) return current();
   const now = clock();
-  // A bounded set of 512 slots keeps only selections and reference IDs. Every
+  // A bounded set of 512 slots keeps the validated model result. Every
   // response is rendered anew against the current source text and fingerprint.
   const key = "v1/" + (parseInt(digest(material.base.eventId).slice(0,5),16) % 512);
   const store = storage();
@@ -43,9 +43,11 @@ async function compare(material, context, {storage,model,permit,env,clock}) {
     const result = await modelCall(modelInput(material),[]);
     const checked = applyModelSelection(result,material);
     if (checked) {
-      // Persist the validated selectors only. A model cannot inject additional fields
+      // Persist validated selectors and any validated conditional sentence. A model cannot inject additional fields
       // into the cache, citations, public facts, or the language of an allegation.
-      const compact = {hypotheses:result.hypotheses.map(({id,support,against})=>({id,support,against}))};
+      const compact = {hypotheses:result.hypotheses.map(({id,support,against},i)=>({id,support,against,
+        ...(checked.hypotheses[i].origin === "model" ? {inference:checked.hypotheses[i].explanation} : {}),
+      }))};
       await finish({state:"ready",result:compact});
       return checked;
     }

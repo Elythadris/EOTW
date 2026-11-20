@@ -4,7 +4,7 @@ const idea = (id, label, explanation, test, clues) => ({id,label,explanation,tes
 const profiles = [
   {
     applies:/\b(?:aircraft|airliner|plane|helicopter|aviation)\b/i,
-    context:/\b(?:crash|crashed|accident|emergency landing|grounding|collision)\b/i,
+    context:/\b(?:crash(?:es|ed)?|accidents?|emergency landings?|groundings?|collisions?)\b/i,
     unknown:"Which contributing factors have investigators established, and which are still being examined?",
     ideas:[
       idea("air-conditions","Weather or visibility","Weather or limited visibility could have contributed if conditions at the reported time impaired the flight.","Compare the investigator’s published weather observations with the official sequence of events.",/\b(?:visibility|icing|crosswind|wind shear|thunderstorm|fog|turbulence)\b/i),
@@ -81,7 +81,8 @@ const profiles = [
     applies:/\b(?:ufo|uap|unidentified|unexplained|claim coverage|conspiracy|qanon|allegation|rumou?r)\b/i,
     unknown:"Is the originating material available, and does an independent public source verify the interpretation?",
     ideas:[
-      idea("claim-context","Missing context","A partial description, image or measurement could allow several interpretations of the same observation.","Look for the original dated material, full context and a published independent analysis.",/\b(?:partial|limited data|incomplete|misidentif\w*|unclear|context|sensor)\b/i),
+      idea("claim-context","Missing context","A partial description, image or measurement could allow several interpretations of the same observation.","Look for the original dated material, full context and a published independent analysis.",/\b(?:partial|limited data|incomplete|misidentif\w*|unclear|context)\b/i),
+      idea("claim-instrument","An instrument or recording artifact","An identified instrument limitation could explain part of an unusual observation. The relevant technical findings must connect it to this record.","Check published calibration findings and the original recording for a documented artifact.",/\b(?:sensor error|instrument error|calibration error|recording artifact|sensor artifact)\b/i),
       idea("claim-recirculation","Recirculation of an earlier claim","Renewed discussion could reflect circulation of an older account rather than new evidence.","Check the earliest publication date and whether later reports add independently obtained evidence.",/\b(?:recirculat\w*|repost\w*|resurfac\w*|older|previously published|archival)\b/i),
     ],
   },

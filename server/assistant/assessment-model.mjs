@@ -4,7 +4,8 @@ import { investigationProfile, reviewOfInterference } from "./assessment-profile
 
 const tidy = value => String(value || "").replace(/\s+/g, " ").trim();
 const point = (text, record) => ({text, citationIds:record ? [record.id] : []});
-const rejected = /\b(?:ruled out|found no evidence|no (?:sign|evidence|indication)s? of|inconsistent with|excludes?|did not (?:find|detect|occur)|disproved|denied|unrelated to)\b/i;
+const allegationText = /\b(?:alleg(?:ation\w*|edly|ed|es?|ing)|accus(?:ation\w*|ed|es?|ing)|rumou?r(?:s|ed)?|unverified|unsubstantiated|without evidence|unconfirmed claims?|suspected of|charged with|indicted (?:for|on)|claims? (?:that|to have)|asserts? without|conspiracy theory)\b/i;
+const rejected = /\b(?:rul(?:e|es|ed) out|found no evidence|no (?:sign|evidence|indication)s? of|inconsistent with|excludes?|did not (?:find|detect|occur)|disproved|denied|unrelated to)\b/i;
 const absenceOnly = /\b(?:found no evidence|no (?:sign|evidence|indication)s? of|not yet confirmed|insufficient evidence)\b/i;
 const possibilityOnly = /\b(?:unclear whether|might have|may have|wondered|speculated|alleged|rumou?r|possibly|could have)\b/i;
 const officialHost = raw => {
@@ -27,7 +28,7 @@ function sourcePassages(records) {
     const values = record.kind.startsWith("published ") ? [record.excerpt] : [record.excerpt, record.title];
     const seen = new Set();
     for (const value of values) {
-      const sentences = tidy(value).match(/[^.!?]+(?:[.!?]+(?=\s|$)|$)/g) || [];
+      const sentences = tidy(value).split(/(?<=[.!?])\s+|\s+(?=\*\s+[A-Z])/u);
       for (const sentence of sentences) {
         const text = tidy(sentence).replace(/^\*+\s*/, "");
         if (text.length < 12 || text.length > 410 || seen.has(text)) continue;
@@ -42,7 +43,7 @@ function sourcePassages(records) {
 }
 
 function explicitInquiry(passage) {
-  if (!officialHost(passage.record.url) || rejected.test(passage.text) || passage.record.status === "speculation") return false;
+  if (!officialHost(passage.record.url) || rejected.test(passage.text) || allegationText.test(passage.text) || passage.record.status === "speculation") return false;
   return /\b(?:investigators?|investigation|authorit(?:ies|y)|agency|inquiry|commission|police|board)\b[^.!?]{0,60}\b(?:examin\w+|investigat\w+|review\w*|inquir\w* into)\b[^.!?]{0,65}\b(?:sabotage|deliberate interference|intelligence operation|covert operation)\b/i.test(passage.text);
 }
 
@@ -52,21 +53,31 @@ function citedPassage(p) {
 }
 
 function canSupport(passage, event) {
-  return passage.record.kind === "published evidence" ||
-    (event.status !== "speculation" && !event.topicClaim && event.editorialType !== "prediction" && passage.record.kind !== "published counterevidence");
+  if (allegationText.test(passage.text)) return false;
+  // Editorial polarity refers to the underlying claim. Either type of attributed
+  // finding may favor or contradict a different explanatory hypothesis.
+  return ["published evidence","published counterevidence"].includes(passage.record.kind) ||
+    (event.status !== "speculation" && !event.topicClaim && event.editorialType !== "prediction");
 }
 
 function bearing(passage, proposal, event) {
   if (proposal === reviewOfInterference) return explicitInquiry(passage) ? "support" : null;
   // Negation belongs to its clause. The absence of a positive finding is not a disproof.
-  const clauses = passage.text.split(/;|,\s+(?=(?:but|while|although|whereas|yet)\b)|\b(?:but|whereas)\b/i);
+  const clauses = passage.text.split(/;|,\s+|\b(?:but|whereas)\b/i);
   const matched = clauses.filter(clause=>proposal.clues.test(clause));
   if (!matched.length) return null;
-  if (passage.record.kind === "published counterevidence") return "against";
   if (!canSupport(passage,event)) return null;
   if (matched.some(clause=>absenceOnly.test(clause) || possibilityOnly.test(clause))) return null;
-  if (matched.every(clause=>rejected.test(clause))) return "against";
-  return matched.every(clause=>!rejected.test(clause)) ? "support" : null;
+  const valences = matched.map(clause => {
+    const match = proposal.clues.exec(clause);
+    const before = clause.slice(0,match.index);
+    const after = clause.slice(match.index + match[0].length);
+    const directNegative = /\b(?:rul(?:e|es|ed|ing) out|inconsistent with|disprov(?:e|es|ed)|exclud(?:e|es|ed)|denied)\s+(?:(?:the|a|an|any|reported|possible|substantial|possibility of|a role for)\s+){0,3}$/i.test(before) ||
+      /^\s+(?:is|are|was|were|has been|had been|was explicitly|is explicitly)\s+(?:ruled out|disproved|excluded)\b/i.test(after);
+    if (directNegative) return "against";
+    return rejected.test(clause) || /\b(?:no|not|never|without|lacks?|ruling out)\b/i.test(clause) ? null : "support";
+  });
+  return valences.every(v=>v === "against") ? "against" : valences.every(v=>v === "support") ? "support" : null;
 }
 
 function investigateOptions(profile, event, passages) {
@@ -76,7 +87,7 @@ function investigateOptions(profile, event, passages) {
   const options = [];
   for (const proposal of ideas) {
     const matches = passages.filter(p => proposal.clues.test(p.text));
-    if (proposal.id === "water-coast" && !matches.length) continue;
+    if (["water-coast","claim-instrument"].includes(proposal.id) && !matches.length) continue;
     const support = matches.filter(p => bearing(p,proposal,event) === "support");
     const against = matches.filter(p => bearing(p,proposal,event) === "against");
     options.push({...proposal, support:support.slice(0,2), against:against.slice(0,2)});
@@ -116,17 +127,22 @@ export function assessmentMaterial(event) {
   const facts = [];
   const allegations = [];
   if (primary) {
-    if (claim) {
+    const flaggedTitle = allegationText.test(primary.title);
+    if (claim || flaggedTitle) {
       facts.push(point(primary.source + " published material on this subject. Publication establishes that the account exists.",primary));
       allegations.push(point("Subject of the " + (social ? "discussion" : "published account") + ": " + primary.title,primary));
     } else {
       facts.push(point(primary.source + " reports: " + primary.title,primary));
-      const detail = passages.find(p => p.record === primary && p.text !== tidy(primary.title));
+    }
+    const details = passages.filter(p => p.record === primary && p.text !== tidy(primary.title));
+    if (!claim) {
+      const detail = details.find(p => !allegationText.test(p.text));
       if (detail) facts.push(citedPassage(detail));
     }
+    for (const p of details.filter(p => allegationText.test(p.text)).slice(0,2)) allegations.push(citedPassage(p));
   }
   const significance = [];
-  if (event.intelligence?.why && primary) significance.push(point(event.intelligence.why,primary));
+  if (event.intelligence?.why && primary && !allegationText.test(event.intelligence.why)) significance.push(point(event.intelligence.why,primary));
   else if (claim) significance.push(point("The record is relevant to the spread and verification of a public narrative. Discussion volume cannot verify the underlying claim.",primary));
   else if (event.severityReason && primary) significance.push(point(event.severityReason,primary));
   else if (primary) significance.push(point("The next revision can establish whether the reported scope, consequences or official response changed.",primary));
@@ -136,13 +152,14 @@ export function assessmentMaterial(event) {
   if (!records.some(r => r.kind === "published counterevidence"))
     unknowns.push("This record contains no separately indexed contrary finding. That leaves alternative explanations open.");
   const base = {eventId:event.id,mode:"sources",updatedAt:event.updatedAt || event.publishedAt,notice:"Source-based assessment. Possible explanations are research questions. Supporting passages provide context, not proof.",
-    facts,allegations,significance,hypotheses:[],implications:claim ? [] : publicConsequences(event,primary,options.some(o=>o.id === reviewOfInterference.id)),
+    facts,allegations,significance,hypotheses:[],implications:claim || allegations.length ? [] : publicConsequences(event,primary,options.some(o=>o.id === reviewOfInterference.id)),
     unknowns,watch,citations:records.map(({id,title,source,url})=>({id,title,source,url}))};
-  const fingerprint = digest(JSON.stringify(["assessment-v1",base,options.map(o=>[o.id,o.support.map(p=>[p.ref,p.text]),o.against.map(p=>[p.ref,p.text])])]));
-  return {base,options,fingerprint,modelEligible:!excluded && !!primary && !!options.length};
+  const fingerprint = digest(JSON.stringify(["assessment-v2",base,options.map(o=>[o.id,o.support.map(p=>[p.ref,p.text]),o.against.map(p=>[p.ref,p.text])])]));
+  const sensitiveContext = /\b(?:military|intelligence operation|covert|sabotage|assassination|cyber\w*|intrusion|attack\w*|warfare|terror\w*|weapon\w*|pathogen|explosi\w*|suicide|kidnap\w*)\b/i.test([event.title,event.summary,event.category].join(" "));
+  return {base,options,fingerprint,modelEligible:!excluded && !!primary && !!options.length,canWrite:!claim && !allegations.length && !sensitiveContext};
 }
 
-const selectedOption = (option,support,against) => ({label:option.label,explanation:option.explanation,test:option.test,
+const selectedOption = (option,support,against) => ({label:option.label,explanation:option.explanation,origin:"research",inferenceCitationIds:[],test:option.test,
   support:option.support.filter(p=>support.includes(p.ref)).map(citedPassage),
   against:option.against.filter(p=>against.includes(p.ref)).map(citedPassage)});
 
@@ -154,16 +171,51 @@ export function sourceAssessment(material, notice) {
   return {...material.base,...(notice ? {notice} : {}),hypotheses:ranked.slice(0,3).map(o=>selectedOption(o,o.support.map(p=>p.ref),o.against.map(p=>p.ref)))};
 }
 
+
+const writeableIdea = /^(?:water-|quake-|hazard-|utility-|policy-implementation$|policy-announcement$|new-development$|reporting-revision$)/;
+const grammar = new Set(("a an the this that these those if as at for by from of in into on to with without under over after before until during between and or while " +
+  "is are was were has have had be been being it its still could may might can would remain remains continue continues continuing persist persists keep keeps become becomes " +
+  "then further later earlier local next current reported conditions change changes changing longer shorter rise rises rising move moves moving shift shifts " +
+  "suggest suggests reflect reflects consistent lead leads result results because where when which more less").split(/\s+/));
+const sensitiveWords = /\b(?:arms?|actor|agent|armed|army|soldier|police|suspect|person|persons|terror\w*|militar\w*|missile|weapon\w*|bomb\w*|attack\w*|covert|secret|sabota\w*|intelligence|deliberate\w*|intentional\w*|blame\w*|attribut\w*|perpetrat\w*|exploit\w*|malware|ransomware|intrusion|payload|target\w*|intrud\w*|bypass\w*|entry point|weakness|disable\w*|vulnerab\w*|evad\w*|chemical|biological|pathogen|casualt\w*|killed|murder\w*|culprit|criminal|perpetrator|suspicious|surveil\w*|lies?|lied|guilty|proof|proves?|certainly|certain|guarantee\w*|always|never|authoriz\w*|must|should|shall|step|command|execute|engineer\w*|triple\w*|doubl\w*|half|percent|zero|one|two|three|four|five|six|seven|eight|nine|ten|hundred|thousand|million)\b/i;
+const words = text => String(text || "").toLowerCase().match(/[a-z]+/g) || [];
+const stem = word => word.length > 5 ? word.replace(/ies$/,"y").replace(/(?:ing|ed|s)$/,"") : word;
+const stems = text => new Set(words(text).map(stem));
+
+function verifiedInference(value, option, selectedRefs, material) {
+  if (!material.canWrite || !writeableIdea.test(option.id) || typeof value !== "string" || !selectedRefs.length) return null;
+  const line = value.trim();
+  // A single conditional with no new people, numbers, attribution, prescriptions
+  // or free-standing factual assertions. Reject an invalid sentence independently
+  // of the reference selections so the reader still gets the checked comparison.
+  if (line.length < 38 || line.length > 220 ||
+    !/^If [a-z][a-z '’-]{6,105}, [a-z][a-z '’-]{0,82}\b(?:could|may|might)\b[a-z '’-]{4,105}\.$/.test(line) ||
+    sensitiveWords.test(line) || /\b(?:he|she|they|their|him|his|her|i|we|you|your)\b/.test(line)) return null;
+  const evidence = option.support.filter(p => selectedRefs.includes(p.ref));
+  const passages = evidence.map(p=>p.text).join(" ");
+  const proper = new Set(evidence.flatMap(p => {
+    // Proper names in source text are not eligible as subjects of a generated hypothesis.
+    return p.text.slice(1).match(/\b[A-Z][a-zA-Z]{2,}\b/g) || [];
+  }).map(x=>x.toLowerCase()));
+  const sourceWords = stems(passages);
+  const allowed = new Set([...sourceWords,...stems([option.label,option.explanation,option.test].join(" ")),...[...grammar].map(stem)]);
+  const tokens = words(line);
+  if (tokens.some(token=>proper.has(token) || !allowed.has(stem(token)))) return null;
+  const grounded = new Set(tokens.filter(token=>token.length >= 4 && !grammar.has(token) && sourceWords.has(stem(token))).map(stem));
+  if (grounded.size < 2) return null;
+  return {explanation:line,origin:"model",inferenceCitationIds:[...new Set(evidence.map(p=>p.record.id))]};
+}
+
 export function modelInput(material) {
   return {report:material.base.facts, allegations:material.base.allegations,
     alternatives:material.options.map(({id,label,explanation,test,support,against})=>({
-      id,label,explanation,test,
+      id,label,explanation,test,canWrite:material.canWrite && writeableIdea.test(id),
       support:support.map(p=>({ref:p.ref,passage:p.text})),against:against.map(p=>({ref:p.ref,passage:p.text})),
     }))};
 }
 
-// The model proposes comparisons. It cannot add actors, causal claims, quotations,
-// reference URLs or evidence to the source-bound alternatives supplied by the server.
+// The model proposes comparisons and may phrase a conventional conditional inference.
+// All factual text, source quotations, identifiers and URLs come from the current record.
 export function applyModelSelection(raw,material) {
   if (!raw || !Array.isArray(raw.hypotheses) || raw.hypotheses.length < Math.min(2,material.options.length) || raw.hypotheses.length > 3) return null;
   const seen = new Set();
@@ -177,7 +229,12 @@ export function applyModelSelection(raw,material) {
     }
     seen.add(choice.id);
     // Keep every known contrary finding even if the model leaves it out.
-    hypotheses.push(selectedOption(option,choice.support,option.against.map(p=>p.ref)));
+    const hypothesis = selectedOption(option,choice.support,option.against.map(p=>p.ref));
+    const inference = verifiedInference(choice.inference,option,choice.support,material);
+    hypotheses.push(inference ? {...hypothesis,...inference} : hypothesis);
   }
-  return {...material.base,mode:"ai",notice:"AI-assisted assessment. The model compared source-bound explanations and selected relevant passages. Hypotheses and conditional implications are inferences, not verified findings.",hypotheses};
+  const wrote = hypotheses.some(h=>h.origin === "model");
+  return {...material.base,mode:"ai",notice:wrote
+    ? "AI hypotheses are conditional interpretations of the cited passages. Research hypotheses use checked alternatives. Neither is a verified finding."
+    : "AI-assisted comparison. The model selected research hypotheses and source passages. The explanations shown use checked alternatives.",hypotheses};
 }

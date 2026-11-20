@@ -70,7 +70,7 @@ test("a crash cannot open deliberate-interference speculation without an explici
 
 test("model selectors cannot invent citations or suppress documented contradictory findings",()=>{
   const story={...event,editorialType:"investigation",source:"Research desk",byline:"Evidence desk",url:"https://example.org/review",
-    counterevidence:[{name:"Published gauge record",url:"https://example.org/gauge",finding:"The gauge provides no evidence of heavy rainfall."}]};
+    counterevidence:[{name:"Published gauge record",url:"https://example.org/gauge",finding:"The gauge record rules out heavy rainfall."}]};
   const material=assessmentMaterial(story);
   const input=modelInput(material);
   const raw=expectedSelection(input);
@@ -124,4 +124,60 @@ test("preview, unavailable provider, exhausted quota, bad model output and blob 
   const head=await assessmentHandler(h.dependencies)(new Request(req().url,{method:"HEAD"}),ctx);
   assert.equal(head.status,200);assert.equal(await head.text(),"");
   h.revise(null);assert.equal((await assessmentHandler(h.dependencies)(req(),ctx)).status,404);
+});
+
+test("mixed developing news separates allegations from documented reporting and verified readings retain decimals",()=>{
+  const story={...event,status:"developing",category:"Weather",title:"Agency opens gauge review",
+    summary:"The river gauge measured 5.3 feet. Residents alleged heavy rainfall caused the failure."};
+  const m=assessmentMaterial(story);
+  const result=sourceAssessment(m);
+  assert.match(result.facts.map(p=>p.text).join(" "),/5\.3 feet/);
+  assert.doesNotMatch(result.facts.map(p=>p.text).join(" "),/alleged/);
+  assert.match(result.allegations[0].text,/Residents alleged/);
+  assert.equal(result.hypotheses.some(h=>h.support.some(p=>/alleged/.test(p.text))),false);
+  assert.equal(m.canWrite,false);
+  const title=sourceAssessment(assessmentMaterial({...story,title:"Residents allege sabotage caused aircraft crash",category:"Aviation"}));
+  assert.match(title.allegations[0].text,/Residents allege/);
+  assert.doesNotMatch(title.facts.map(p=>p.text).join(" "),/sabotage/);
+  const ordinary=sourceAssessment(assessmentMaterial({...story,summary:"The gauge measured 5.3 feet."}));
+  assert.deepEqual(ordinary.allegations,[]);
+});
+
+test("editorial polarity relative to a claim does not determine its bearing on a conventional alternative",()=>{
+  const story={...event,title:"UAP observation examined",source:"Evidence desk",topicClaim:true,category:"Claim coverage",editorialType:"investigation",
+    summary:"A published review examines a reported observation.",url:"https://example.org/review",
+    counterevidence:[
+      {name:"Sensor record",url:"https://example.org/sensor",finding:"Independent calibration documented a sensor error in the recording."},
+      {name:"Calibration",url:"https://example.org/calibration",finding:"The calibration ruled out sensor error."},
+    ]};
+  const explanation=sourceAssessment(assessmentMaterial(story)).hypotheses.find(h=>h.label==="An instrument or recording artifact");
+  assert.ok(explanation.support.some(p=>p.text.includes("documented a sensor error")));
+  assert.ok(explanation.against.some(p=>p.text.includes("ruled out sensor error")));
+  assert.ok(explanation.against.every(p=>!p.text.includes("documented a sensor error")));
+  const crash=sourceAssessment(assessmentMaterial({...event,category:"News",title:"Plane crashes during approach",summary:"An investigation is under way."}));
+  assert.ok(crash.hypotheses.some(h=>h.label==="Equipment or maintenance"));
+});
+
+test("model-authored conventional inference is conditional, source-bound and independently validated",()=>{
+  const material=assessmentMaterial(event);
+  const raw=expectedSelection(modelInput(material));
+  const valid="If heavy rainfall continues, water levels could keep rising after local rain eases.";
+  raw.hypotheses[0].inference=valid;
+  const first=applyModelSelection(raw,material).hypotheses[0];
+  assert.equal(first.origin,"model");assert.equal(first.explanation,valid);assert.deepEqual(first.inferenceCitationIds,["1"]);
+  for (const bad of [
+    "If rainfall continues, a named actor could sabotage public infrastructure.",
+    "If heavy rainfall continues, water levels could rise by two metres.",
+    "If a region grows, an unmapped road could be blocked.",
+    "A specific person must have caused the incident.",
+    "If heavy rainfall continues, Baker could change the water levels.",
+  ]) {
+    raw.hypotheses[0].inference=bad;
+    assert.equal(applyModelSelection(raw,material).hypotheses[0].origin,"research");
+  }
+  raw.hypotheses[0].inference=valid;
+  const sensitive=assessmentMaterial({...event,title:"Flood warning near a military facility"});
+  assert.equal(applyModelSelection(raw,sensitive).hypotheses[0].origin,"research");
+  raw.hypotheses[0].support=[];
+  assert.equal(applyModelSelection(raw,material).hypotheses[0].origin,"research");
 });
