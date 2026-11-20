@@ -26,3 +26,7 @@
 .command-tools{display:flex;flex-wrap:wrap;gap:.5rem;margin:0 0 1rem}
 .command-tools a{display:inline-flex;gap:.45rem;align-items:center;min-height:2.6rem;padding:.48rem .8rem;border:1px solid rgba(137,181,183,.26);border-radius:.45rem;background:rgba(66,116,117,.12);font-size:.86rem;text-decoration:none}
 .command-tools a:hover{border-color:var(--accent,#78ddd2);background:rgba(66,116,117,.26)}
+.eotw-report-choice{display:flex;align-items:stretch;gap:.35rem}
+.eotw-report-choice .eotw-open-report{flex:1;min-width:0}
+.eotw-inspect-report{display:grid;place-items:center;flex:0 0 2.6rem;border:1px solid rgba(137,181,183,.3);border-radius:.35rem;background:rgba(66,116,117,.16);color:inherit;cursor:pointer}
+.eotw-inspect-report:hover,.eotw-inspect-report:focus-visible{border-color:var(--accent,#78ddd2)}

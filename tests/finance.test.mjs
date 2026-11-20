@@ -15,7 +15,7 @@ test("reference series compare 20 prior moves in their native units and keep mis
 test("partial upstream availability preserves the actual chart data and scheduled auctions",async()=>{
   const ecb='<gesmes:Envelope xmlns:gesmes="x"><Cube><Cube time="2026-11-18"><Cube currency="USD" rate="1.15"/></Cube><Cube time="2026-11-19"><Cube currency="USD" rate="1.16"/></Cube></Cube></gesmes:Envelope>';
   const record={securityTerm:"13-Week",securityType:"Bill",cusip:"912797WC7",offeringAmount:"95000000000",announcementDate:"2026-11-18",competitiveAuctionCloseDate:"2026-11-23",competitiveAuctionCloseTime:"11:30 AM"};
-  const fetcher=async url=>url.includes("ecb.europa")?new Response(ecb):url.includes("treasurydirect")?Response.json([record,{...record,competitiveAuctionCloseDate:"2026-10-02"}]):new Response(null,{status:503});
+  const fetcher=async url=>url.includes("ecb.europa")?new Response(ecb):url.includes("treasurydirect")?Response.json([record,{...record,competitiveAuctionCloseDate:"2026-10-02"},{...record,competitiveAuctionCloseDate:"2026-11-19",competitiveAuctionCloseTime:"1:00 PM"}]):new Response(null,{status:503});
   const result=await loadFinance({now,fetcher});
   assert.deepEqual(result.series.map(s=>s.symbol),["EURUSD"]);assert.equal(result.series[0].asOf,"2026-11-19");
   assert.equal(result.auctions.length,1);assert.equal(result.auctions[0].id,record.cusip);assert.equal(result.sources[0].status,"unavailable");

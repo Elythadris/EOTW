@@ -40,7 +40,7 @@ export function marketSeries(symbol, input, now=Date.now()) {
     : (change>0?"Up ":"Down ")+amount(Math.abs(change),kind==="rate"?1:3)+" "+unitChange+" from "+previous.date+".";
   const narrative = kind === "rate"
     ? "The New York Fed measured overnight borrowing secured by U.S. Treasury securities at "+latest.value.toFixed(2)+"%. "+changeText
-    : "One euro bought "+latest.value.toFixed(precision)+" "+symbol.slice(3)+" at the ECB reference rate. "+changeText;
+    :  "The ECB published a reference rate of "+latest.value.toFixed(precision)+" "+symbol.slice(3)+" per euro. "+changeText;
   return {symbol,label,unit,kind,precision,source:source.name,sourceUrl:source.url,asOf:latest.date,points,change,unitChange,comparison,narrative,
     stale:now-Date.parse(latest.date+"T23:59:59Z")>5*DAY,
     ...(symbol==="SOFR"?{termsUrl:"https://www.newyorkfed.org/privacy/termsofuse.html"}:{})};
@@ -80,11 +80,15 @@ function ecbSeries(raw,now) {
 function auctions(raw,now) {
   const rows=JSON.parse(raw);
   if(!Array.isArray(rows))throw Error("Unexpected auction response.");
-  const today = new Intl.DateTimeFormat("en-CA",{timeZone:"America/New_York",year:"numeric",month:"2-digit",day:"2-digit"}).format(now);
+  const parts = Object.fromEntries(new Intl.DateTimeFormat("en-US",{timeZone:"America/New_York",year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",hourCycle:"h23"}).formatToParts(now).map(part=>[part.type,part.value]));
+  const today = [parts.year,parts.month,parts.day].join("-");
+  const minuteOfDay = Number(parts.hour)*60+Number(parts.minute);
   return rows.flatMap(r=>{
     const date=day(r.competitiveAuctionCloseDate || r.auctionDate), published=day(r.announcementDate);
     if(!date || date<today || !published || published>today || !/^[A-Z0-9]{9}$/.test(r.cusip || "") || !r.securityType || !r.securityTerm) return [];
-    return [{id:r.cusip,title:r.securityTerm+" Treasury "+r.securityType,date,published,time:/^\d{1,2}:\d\d [AP]M$/.test(r.competitiveAuctionCloseTime)?r.competitiveAuctionCloseTime+" ET":null,
+    const clock=/^(1[0-2]|0?[1-9]):([0-5]\d) ([AP]M)$/.exec(r.competitiveAuctionCloseTime);
+    if(date===today && clock && (Number(clock[1])%12+(clock[3]==="PM"?12:0))*60+Number(clock[2])<=minuteOfDay)return [];
+    return [{id:r.cusip,title:r.securityTerm+" Treasury "+r.securityType,date,published,time:clock?r.competitiveAuctionCloseTime+" ET":null,
       amount:r.offeringAmount && Number.isFinite(Number(r.offeringAmount)) && Number(r.offeringAmount)>0 ? Number(r.offeringAmount) : null,url:TREASURY.url}];
   }).sort((a,b)=>a.date.localeCompare(b.date)||a.id.localeCompare(b.id)).slice(0,12);
 }

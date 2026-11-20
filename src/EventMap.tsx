@@ -363,13 +363,15 @@ export default function EventMap({ events, onSelect, onInspect, compact = false,
     </div>
     {selected && <section className="eotw-cluster" aria-label="Selected map reports" onKeyDown={e => { if (e.key === "Escape") dismiss(); }}>
       <div className="eotw-cluster-head"><div><small>{selected.members.length === 1 ? "Selected report" : selected.members.length + " reports near"}</small><strong>{place(selected.members[0].event)}</strong></div><button type="button" ref={closePanel} aria-label="Close map reports" onClick={dismiss}><X size={17}/></button></div>
-      <div className="eotw-cluster-list">{selected.members.map(({ event }) => <button type="button" key={event.id} className="eotw-open-report" onClick={() => {
-        if (onInspect) { setPicked(event.id); onInspect(event); }
-        else onSelect(event);
-      }}>
-        <span><small>{priorityNames[priority(event)]} · {event.source}</small><strong>{event.title}</strong>
-          {(event.mapNote || event.coordinatePrecision === "country" || event.coordinatePrecision === "region") && <em>{event.mapNote || "Approximate regional location"}</em>}
-        </span><ArrowUpRight size={16} aria-hidden="true"/></button>)}</div>
+      <div className="eotw-cluster-list">{selected.members.map(({ event }, index) => <div key={event.id} className="eotw-report-choice">
+        <button type="button" className="eotw-open-report" onClick={() => onSelect(event)}>
+          <span><small>{priorityNames[priority(event)]} · {event.source}</small><strong id={landId + "-report-" + index}>{event.title}</strong>
+            {(event.mapNote || event.coordinatePrecision === "country" || event.coordinatePrecision === "region") && <em>{event.mapNote || "Approximate regional location"}</em>}
+          </span><ArrowUpRight size={16} aria-hidden="true"/>
+        </button>
+        {onInspect && <button type="button" className="eotw-inspect-report" aria-label={"Inspect report " + (index + 1) + " in workspace"}
+          aria-describedby={landId + "-report-" + index} onClick={() => onInspect(event)}><Crosshair size={16} aria-hidden="true"/></button>}
+      </div>)}</div>
       {target.k < 35.9 && <button type="button" className="eotw-area-focus" onClick={() => center(selected.members, Math.min(36, Math.max(4, target.k * 2.8)), place(selected.members[0].event))}><Crosshair size={14}/> Zoom to this area</button>}
     </section>}
     {(layerKinds.length > 0 || applicableAreas) && <div className="eotw-map-layers" role="group" aria-label="Map layers">
