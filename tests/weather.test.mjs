@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {point,findPlaces,weatherBounds,radarRegion,imageUrl,radarFrames,normalizeForecast,weatherAt} from "../server/weather.mjs";
+import {point,nearbyStation,pointAdvisories,findPlaces,weatherBounds,radarRegion,imageUrl,radarFrames,normalizeForecast,weatherAt} from "../server/weather.mjs";
 import weather from "../netlify/functions/weather.mjs";
 const date="2026-11-20T10:00:00Z",now=Date.parse(date),place={latitude:20.891,longitude:-156.505};
 
@@ -40,4 +40,14 @@ test("public endpoint validates inputs before any upstream fetch",async()=>{
   for(const url of ["?lat=0&lon=201","?view=image&lat=0&lon=0&layer=ftp&zoom=regional","?view=surprise"]){
     assert.equal((await weather(new Request("https://example.org/api/weather"+url))).status,400);}
   assert.equal((await weather(new Request("https://example.org/api/weather",{method:"POST"}))).status,405);
+});
+
+test("station and international warning data must be recent and geographically applicable",()=>{
+  const row={icaoId:"PHOG",name:"Kahului",obsTime:now/1000,lat:20.90,lon:-156.45,temp:22,wspd:0};
+  assert.equal(nearbyStation([row],place,now).windKnots,0);
+  assert.equal(nearbyStation([row],place,now+4*3600000),null);
+  const report={geom:"AREA",coords:[{lat:0,lon:179},{lat:2,lon:179},{lat:2,lon:-179},{lat:0,lon:-179}],validTimeFrom:now/1000-60,validTimeTo:now/1000+60,hazard:"TS",firId:"FIR",seriesId:"2"};
+  assert.equal(pointAdvisories([report],{latitude:1,longitude:179.5},now).length,1);
+  assert.equal(pointAdvisories([report],{latitude:1,longitude:0},now).length,0);
+  assert.equal(pointAdvisories([report],{latitude:1,longitude:179.5},now+120000).length,0);
 });

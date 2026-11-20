@@ -44,7 +44,8 @@ async function read(url,{kind="json",ttl=300,limit=2200000}={}) {
   if(prior&&prior.until>Date.now())return prior.value;
   const value=(async()=>{
     const response=await fetch(url,{headers:{"User-Agent":AGENT},redirect:"error",signal:AbortSignal.timeout(8500)});
-    if(!response.ok)throw Error("Provider HTTP "+response.status);
+    if(!response.ok)throw Object.assign(Error("Provider HTTP "+response.status),{status:response.status});
+    if(response.status===204 && (kind==="observations"||kind==="sigmets"))return [];
     const reader=response.body.getReader();const chunks=[];let length=0;
     for(;;){const {done,value}=await reader.read();if(done)break;length+=value.byteLength;if(length>limit){await reader.cancel();throw Error("Oversized weather response");}chunks.push(value);}
     const data=Buffer.concat(chunks);const type=response.headers.get("content-type")||"";
@@ -57,6 +58,48 @@ async function read(url,{kind="json",ttl=300,limit=2200000}={}) {
   if(cache.size>=96)cache.delete(cache.keys().next().value);
   cache.set(url,{value,until:Date.now()+12000});
   try{return await value;}catch(error){if(cache.get(url)?.value===value)cache.delete(url);throw error;}
+}
+function stationUrl(p){
+  const width=Math.min(5,1.1/Math.max(.25,Math.cos(p.latitude*Math.PI/180)));
+  const limits=[Math.max(-90,p.latitude-1),Math.max(-180,p.longitude-width),Math.min(90,p.latitude+1),Math.min(180,p.longitude+width)];
+  const u=new URL("https://aviationweather.gov/api/data/metar");u.search=new URLSearchParams({bbox:limits.map(d=>d.toFixed(2)).join(","),format:"json",hours:"3"});return u.href;
+}
+export function nearbyStation(list,p,now){
+  if(!Array.isArray(list))throw Error("Invalid station response");
+  const candidates=list.flatMap(row=>{
+    const t=Number(row.obsTime)*1000;
+    if(!/^[A-Z0-9]{3,5}$/.test(row.icaoId)||!point(row.lat,row.lon)||!Number.isFinite(t)||t<now-3*HOUR||t>now+60000||num(row.temp)===null)return [];
+    const rad=Math.PI/180;
+    const hav=Math.sin((row.lat-p.latitude)*rad/2)**2+Math.cos(p.latitude*rad)*Math.cos(row.lat*rad)*Math.sin((row.lon-p.longitude)*rad/2)**2;
+    const distance=Math.round(12742*Math.asin(Math.min(1,Math.sqrt(hav))));if(distance>100)return [];
+    return [{station:row.icaoId,label:clean(row.name,100)||row.icaoId,at:new Date(t).toISOString(),distance,temp:row.temp,windKnots:num(row.wspd),wx:clean(row.wxString,50),url:"https://aviationweather.gov/data/metar/?ids="+row.icaoId}];
+  });
+  return candidates.sort((a,b)=>a.distance-b.distance||Date.parse(b.at)-Date.parse(a.at))[0]||null;
+}
+const SIGMET="https://aviationweather.gov/api/data/isigmet?format=json";
+export function pointAdvisories(list,p,now) {
+  if(!Array.isArray(list))throw Error("Invalid airspace bulletin response");
+  return list.flatMap(row=>{
+    const start=Number(row.validTimeFrom)*1000,end=Number(row.validTimeTo)*1000;
+    if(row.geom!=="AREA"||!Array.isArray(row.coords)||row.coords.length<3||!row.coords.every(c=>point(c.lat,c.lon))||!(start<=now&&now<end))return [];
+    // Unwrap the polygon along the shortest longitude steps, then test each nearby world copy.
+    const ring=[];let prior=p.longitude;
+    for(const v of row.coords){const lon=prior+(((v.lon-prior+540)%360)-180);ring.push([lon,v.lat]);prior=lon;}
+    const inside=[p.longitude-360,p.longitude,p.longitude+360].some(x=>{
+      let found=false;
+      for(let i=0,j=ring.length-1;i<ring.length;j=i++){const [ax,ay]=ring[i],[bx,by]=ring[j];if((ay>p.latitude)!==(by>p.latitude)&&x<(bx-ax)*(p.latitude-ay)/(by-ay)+ax)found=!found;}
+      return found;
+    });
+    if(!inside)return [];
+    return [{id:clean(row.firId+"-"+row.seriesId+"-"+row.validTimeFrom,90),title:clean(({TS:"Thunderstorms",TURB:"Turbulence",ICE:"Icing",VA:"Volcanic ash",TC:"Tropical cyclone",MTW:"Mountain waves",DS:"Dust storm",SS:"Sandstorm"})[row.hazard]||row.hazard||"Significant weather"),area:clean(row.firName,120),raw:clean(row.rawSigmet,600),issued:new Date(start).toISOString(),end:new Date(end).toISOString(),url:SIGMET}];
+  }).slice(0,12);
+}
+async function pointAlerts(p,alertsUrl,download){
+  try {
+    const coverage=await download("https://api.weather.gov/points/"+p.latitude+","+p.longitude,{ttl:86400});
+    if(!coverage?.properties?.gridId)throw Error("Invalid NWS coverage response");
+    return {status:"ok",data:normalizeAlerts(await download(alertsUrl,{ttl:180}))};
+  } catch(error){return {status:error?.status===404?"regional":"unavailable",data:null};}
 }
 export function normalizeForecast(body,now=Date.now()) {
   const all=body?.properties?.timeseries;
@@ -130,18 +173,20 @@ export function imageUrl(p,kind,zoom,at,now=Date.now()){
 export async function imageBytes(url){return read(url,{kind:"image",ttl:1800,limit:1600000});}
 const settled=task=>task.then(data=>({status:"ok",data}),()=>({status:"unavailable",data:null}));
 export async function weatherAt(p,{download=read,now=Date.now()}={}) {
-  const region=radarRegion(p),nwsScope=!!region;
+  const region=radarRegion(p),nwsScope=!!region||(p.latitude>=-15.5&&p.latitude<=-10&&p.longitude>=-173&&p.longitude<=-167);
   const alertsUrl=NWS+"?point="+p.latitude+","+p.longitude;
   const forecastUrl=locatedUrl(MET,p);
-  const [forecast,alerts,nhc,eonet,radar]=await Promise.all([
+  const [forecast,alerts,nhc,eonet,radar,station,airspace]=await Promise.all([
     settled(download(forecastUrl,{ttl:1200}).then(v=>normalizeForecast(v,now))),
-    nwsScope?settled(download(alertsUrl,{ttl:180}).then(normalizeAlerts)):Promise.resolve({status:"regional",data:null}),
+    nwsScope?pointAlerts(p,alertsUrl,download):Promise.resolve({status:"regional",data:null}),
     settled(download(NHC,{ttl:300}).then(advisories)),
     settled(download(EONET,{ttl:900}).then(severeStorms)),
     region?settled(download(radarBase(region)+"?service=WMS&version=1.3.0&request=GetCapabilities",{kind:"text",ttl:150}).then(v=>radarFrames(v,now))):Promise.resolve({status:"regional",data:null}),
+    settled(download(stationUrl(p),{ttl:300,kind:"observations"}).then(rows=>nearbyStation(rows,p,now))),
+    settled(download(SIGMET,{ttl:300,kind:"sigmets"}).then(rows=>pointAdvisories(rows,p,now))),
   ]);
   const satelliteDates=Array.from({length:4},(_,i)=>new Date(now-(i+1)*24*HOUR).toISOString().slice(0,10));
-  return {point:p,checkedAt:new Date(now).toISOString(),forecast:{...forecast,url:forecastUrl},alerts:{...alerts,url:nwsScope?alertsUrl:"https://severeweather.wmo.int/"},nhc,eonet,radar:{...radar,region},satelliteDates,
+  return {point:p,checkedAt:new Date(now).toISOString(),station,airspace,forecast:{...forecast,url:forecastUrl},alerts:{...alerts,url:alerts.status!=="regional"?alertsUrl:"https://severeweather.wmo.int/"},nhc,eonet,radar:{...radar,region},satelliteDates,
     bounds:Object.fromEntries(["close","regional","wide"].map(z=>[z,weatherBounds(p,z)]))};
 }
 export async function weatherEvidence({latitude,longitude}) {
@@ -149,6 +194,8 @@ export async function weatherEvidence({latitude,longitude}) {
   const w=await weatherAt(p);const evidence=[];
   if(w.forecast.data){const f=w.forecast.data;const h=f.hours[0];const next=f.hours.slice(0,12).map(row=>row.time+" "+row.temp+" °C"+(row.rain!==null?", "+row.rain+" mm next hour":"")).join(" | ");
     evidence.push({title:"MET Norway forecast at "+p.latitude+"°, "+p.longitude+"°",source:"MET Norway",url:w.forecast.url,publishedAt:f.issuedAt,excerpt:"Model forecast valid "+h.time+": "+h.temp+" °C; wind "+(h.wind??"unavailable")+" m/s; relative humidity "+(h.humidity??"unavailable")+"%. Upcoming model samples: "+next});}
+  if(w.station.data){const s=w.station.data;evidence.push({title:"Observed conditions at "+s.station,source:"NOAA Aviation Weather Center",url:s.url,publishedAt:s.at,excerpt:s.label+" reported "+s.temp+" °C"+(s.windKnots!==null?" with wind "+s.windKnots+" kt":"")+". The station is "+s.distance+" km from the selected coordinate."});}
+  for(const a of (w.airspace.data||[]).slice(0,1))evidence.push({title:"Aviation SIGMET: "+a.title,source:"NOAA Aviation Weather Center",url:a.url,publishedAt:a.issued,excerpt:"International aviation warning polygon contains the coordinate. "+a.raw});
   if(w.alerts.status==="ok"){const alerts=w.alerts.data;if(!alerts.length)evidence.push({title:"NWS point alert query",source:"National Weather Service",url:w.alerts.url,publishedAt:w.checkedAt,excerpt:"NWS returned zero active alerts for this coordinate at "+w.checkedAt+"."});
     for(const a of alerts.slice(0,3))evidence.push({title:a.headline||a.title,source:"National Weather Service",url:a.url,publishedAt:a.issued||w.checkedAt,excerpt:[a.area,a.severity,a.instructions].filter(Boolean).join(". ")});}
   const systems=[...(w.nhc.data||[]),...(w.eonet.data||[])].sort((a,b)=>Date.parse(b.at)-Date.parse(a.at));

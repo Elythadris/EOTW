@@ -25,3 +25,6 @@
 @media(max-width:1160px){.wx-grid{grid-template-columns:minmax(0,1fr) minmax(0,.95fr)}}
 @media(max-width:780px){.wx-grid,.wx-lower{grid-template-columns:minmax(0,1fr)}.wx-search{grid-template-columns:minmax(0,1fr);gap:7px}.wx-location{flex-wrap:wrap}.wx-now,.wx-days,.wx-content,.wx-hours,.wx-map-info,.wx-panel-head{padding:12px}.wx-day{grid-template-columns:minmax(68px,.85fr) minmax(0,1fr) auto}}
 @media(pointer:coarse){.wx-switch button,.wx-search button,.wx-zoom button,.wx-storm button,.wx-matches button{min-height:44px}.wx-zoom button{min-width:44px}}
+
+.wx-play{padding:6px 10px;color:#bee7d8;background:#244439;border:1px solid #4f7467;border-radius:5px;font-size:.8rem;min-height:36px}
+.wx-airspace{border-top:1px solid var(--subline);padding-top:9px}.wx-airspace h3{font:600 .88rem/1.4 var(--body)}

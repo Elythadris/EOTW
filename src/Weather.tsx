@@ -10,7 +10,9 @@ type Alert={title:string;headline:string;area:string;severity:string;end:string|
 type Storm={name:string;source:string;at:string;windKnots:number|null;latitude:number;longitude:number;track:[number,number][];url:string};
 type Source<T>={status:"ok"|"unavailable"|"regional";data:T|null};
 type Zoom="close"|"regional"|"wide";
-type WeatherData={point:{latitude:number;longitude:number};checkedAt:string;forecast:Source<Forecast>&{url:string};alerts:Source<Alert[]>&{url:string};nhc:Source<Storm[]>;eonet:Source<Storm[]>;radar:Source<string[]>&{region:string|null};satelliteDates:string[];bounds:Record<Zoom,[number,number,number,number]>};
+type Station={station:string;label:string;at:string;distance:number;temp:number;windKnots:number|null;url:string};
+type AviationAlert={id:string;title:string;area:string;raw:string;issued:string;end:string;url:string};
+type WeatherData={station:Source<Station>;airspace:Source<AviationAlert[]>;point:{latitude:number;longitude:number};checkedAt:string;forecast:Source<Forecast>&{url:string};alerts:Source<Alert[]>&{url:string};nhc:Source<Storm[]>;eonet:Source<Storm[]>;radar:Source<string[]>&{region:string|null};satelliteDates:string[];bounds:Record<Zoom,[number,number,number,number]>};
 type WeatherContext={kind:"weather";latitude:number;longitude:number;label:string};
 type Props={location:string;onAsk:(question:string,context:WeatherContext)=>void};
 type Layer="satellite"|"radar"|"storms";
@@ -35,9 +37,12 @@ function temp(c:number,unit:"C"|"F"){return Math.round(unit==="F"?c*9/5+32:c)+"�
 function wind(m:number|null,unit:"C"|"F"){return m===null?"Unavailable":unit==="F"?Math.round(m*2.237)+" mph":Math.round(m*3.6)+" km/h";}
 function WeatherMap({data,place,storms,layer,setLayer}:{data:WeatherData;place:Place;storms:Storm[];layer:Layer;setLayer:(l:Layer)=>void}) {
   const [zoom,setZoom]=useState<Zoom>("regional");
-  const [frame,setFrame]=useState(0);
+  const [frame,setFrame]=useState(0),[playing,setPlaying]=useState(false);
   const [failed,setFailed]=useState("");
   const frames=layer==="satellite"?data.satelliteDates:layer==="radar"?[...(data.radar.data||[])].reverse():[];
+  useEffect(()=>{if(!playing||layer!=="radar"||frames.length<2)return;
+    const timer=window.setInterval(()=>setFrame(i=>(i-1+frames.length)%frames.length),950);
+    return()=>window.clearInterval(timer);},[playing,layer,frames.length]);
   const frameIndex=Math.min(frame,Math.max(0,frames.length-1)),at=frames[frameIndex]||"";
   const params=new URLSearchParams({view:"image",lat:String(place.latitude),lon:String(place.longitude),zoom});
   const base="/api/weather?"+params.toString()+"&layer=base";
@@ -49,7 +54,7 @@ function WeatherMap({data,place,storms,layer,setLayer}:{data:WeatherData;place:P
   const dateLabel=at?(layer==="satellite"?at+" UTC":timestamp(at)):"";
   return <section className="wx-panel wx-map" aria-label="Weather imagery">
     <header className="wx-panel-head"><h2><Compass size={18}/> Weather map</h2>
-      <div className="wx-switch" role="group" aria-label="Weather map layers">{layers.map(l=><button key={l} type="button" aria-pressed={l===layer} onClick={()=>{setLayer(l);setFrame(0);setFailed("");}}>{names[l]}</button>)}</div>
+      <div className="wx-switch" role="group" aria-label="Weather map layers">{layers.map(l=><button key={l} type="button" aria-pressed={l===layer} onClick={()=>{setPlaying(false);setLayer(l);setFrame(0);setFailed("");}}>{names[l]}</button>)}</div>
     </header>
     <div className="wx-map-image">
       <img src={base} alt="" className="wx-layer" onError={()=>setFailed(base)} />
@@ -68,7 +73,8 @@ function WeatherMap({data,place,storms,layer,setLayer}:{data:WeatherData;place:P
     <div className="wx-map-info"><strong>{layer==="satellite"?"Terra MODIS · true color":layer==="radar"?"NOAA · base reflectivity":"Observed storm positions"}</strong>
       {layer==="radar"&&!frames.length?<p role="status">{data.radar.status==="regional"?"NOAA radar mosaics cover selected U.S. regions. Satellite imagery is available for this location.":"Recent radar frames are unavailable from NOAA."}</p>:
        layer==="storms"?<p>{storms.filter(t=>inFrame(t.longitude,t.latitude)).length} reported centers within this view. Lines join time-ordered observations from NASA EONET. Select a storm below to recenter.</p>:<span>{dateLabel}</span>}
-      {frames.length>1&&<label className="wx-frames">{layer==="satellite"?"Imagery date":"Radar observation"}<select value={frameIndex} onChange={ev=>setFrame(Number(ev.target.value))}>{frames.map((f,i)=><option key={f} value={i}>{layer==="satellite"?f+" UTC":timestamp(f)}</option>)}</select></label>}
+      {frames.length>1&&<label className="wx-frames">{layer==="satellite"?"Imagery date":"Radar observation"}<select value={frameIndex} onChange={ev=>{setPlaying(false);setFrame(Number(ev.target.value));}}>{frames.map((f,i)=><option key={f} value={i}>{layer==="satellite"?f+" UTC":timestamp(f)}</option>)}</select></label>}
+      {layer==="radar"&&frames.length>1&&<button type="button" className="wx-play" aria-pressed={playing} onClick={()=>{if(!playing)setFrame(frames.length-1);setPlaying(v=>!v);}}>{playing?"Pause radar history":"Play radar history"}</button>}
       {layer==="satellite"&&<small>Daily satellite mosaic. Cloud, polar night and gaps between overpasses can obscure the surface.</small>}
       {failed===base||overlay&&failed===overlay?<p role="status">The imagery provider could not return this frame. Change the date or layer to try another.</p>:null}
       <a href={layer==="radar"?"https://radar.weather.gov/":layer==="satellite"?"https://worldview.earthdata.nasa.gov/":"https://eonet.gsfc.nasa.gov/"} target="_blank" rel="noreferrer">Open {layer==="radar"?"NWS Radar":layer==="satellite"?"NASA Worldview":"NASA EONET"} <ArrowUpRight size={13}/></a>
@@ -123,8 +129,13 @@ export default function Weather({location,onAsk}:Props) {
     {data&&place&&<>
       <div className="wx-grid"><WeatherMap data={data} place={place} storms={storms} layer={layer} setLayer={setLayer}/>
         {data.forecast.data?<ForecastPanel f={data.forecast.data} unit={unit} setUnit={setUnit}/>:<section className="wx-panel wx-message"><h2>Forecast unavailable</h2><p>MET Norway could not supply a current forecast for this location.</p><button className="secondary" onClick={()=>setRetry(v=>v+1)}>Check again</button></section>}</div>
+      <section className="wx-panel wx-station" aria-label="Observed weather">
+        <header className="wx-panel-head"><h2><Thermometer size={18}/> Observed weather</h2></header>
+        <div className="wx-content">{data.station?.data?<><strong>{temp(data.station.data.temp,unit)}{unit} at {data.station.data.label}</strong><p>{data.station.data.station} · {data.station.data.distance} km from the selected point · {timestamp(data.station.data.at)}{data.station.data.windKnots!==null?" · Wind "+data.station.data.windKnots+" kt":""}</p><a href={data.station.data.url} target="_blank" rel="noreferrer">NOAA station report <ArrowUpRight size={13}/></a></>:<p>{data.station?.status==="ok"?"No station within 100 km reported a temperature in the last three hours.":"Nearby station observations are currently unavailable."}</p>}</div>
+      </section>
       <div className="wx-lower"><section className="wx-panel"><header className="wx-panel-head"><h2><Radio size={18}/> Official alerts</h2></header><div className="wx-content">
         {data.alerts.status==="regional"?<p>This location is outside the NOAA regional alert view. Use the WMO directory to find the responsible warning agency.</p>:data.alerts.status!=="ok"?<p>Local warning status could not be verified from NWS.</p>:!data.alerts.data?.length?<p>NWS lists no active alerts at this point as of {timestamp(data.checkedAt)}.</p>:data.alerts.data.map(a=><details key={a.url} className="wx-alert"><summary>{a.title} · {a.severity}</summary><p>{a.headline}</p><p>{a.area}</p>{a.end&&<p>Scheduled end {timestamp(a.end)}</p>}{a.instructions&&<p>{a.instructions}</p>}<a href={a.url} target="_blank" rel="noreferrer">Official bulletin <ArrowUpRight size={13}/></a></details>)}
+        {data.airspace?.status==="ok"?<div className="wx-airspace"><h3>International aviation warnings</h3>{data.airspace.data?.length?data.airspace.data.map(a=><details className="wx-alert" key={a.id}><summary>{a.title} · {a.area}</summary><p>{a.raw}</p><p>Valid until {timestamp(a.end)}.</p><a href={a.url} target="_blank" rel="noreferrer">NOAA Aviation Weather Center <ArrowUpRight size={13}/></a></details>):<p>No active international SIGMET polygon in the NOAA feed covers this point.</p>}</div>:<p>International aviation warnings are currently unavailable.</p>}
         <a href={data.alerts.status==="regional"?"https://severeweather.wmo.int/":"https://www.weather.gov/alerts"} target="_blank" rel="noreferrer">{data.alerts.status==="regional"?"World Meteorological Organization":"National Weather Service"} <ArrowUpRight size={13}/></a>
       </div></section><section className="wx-panel"><header className="wx-panel-head"><h2><Wind size={18}/> Storm tracker</h2></header><div className="wx-content">
         <p>NASA EONET tracks reported storms worldwide. NHC supplies advisories for the Atlantic and eastern and central North Pacific.</p>

@@ -40,8 +40,9 @@ function Intraday() {
 }
 function ReferenceChart({series,onAsk}:{series:Series;onAsk:Ask}) {
   const [range,setRange]=useState(30),[position,setPosition]=useState<number|null>(null);
+  const [hovered,setHovered]=useState<number|null>(null);
   const points=range?series.points.slice(-range):series.points;
-  const at=Math.max(0,Math.min(points.length-1,position??points.length-1)), selected=points[at];
+  const at=Math.max(0,Math.min(points.length-1,hovered??position??points.length-1)), selected=points[at];
   const chartId=useId().replace(/[^a-z0-9]/gi,"");
   const values=points.map(p=>p.value), rawMin=Math.min(...values), rawMax=Math.max(...values);
   const padding=Math.max((rawMax-rawMin)*.09,series.kind==="rate"?.005:Math.abs(rawMax)*.00005,1e-7), top=rawMax+padding, bottom=rawMin-padding;
@@ -49,18 +50,18 @@ function ReferenceChart({series,onAsk}:{series:Series;onAsk:Ask}) {
   const toX=(p:Point)=>last===first?50:1+98*(Date.parse(p.date)-first)/(last-first);
   const toY=(p:Point)=>100-(p.value-bottom)/(top-bottom)*100;
   const coords=points.map(p=>toX(p).toFixed(3)+","+toY(p).toFixed(3)).join(" ");
-  const inspect=(element:SVGSVGElement,x:number)=>{
+  const nearest=(element:SVGSVGElement,x:number)=>{
     const rect=element.getBoundingClientRect(); const f=100*(x-rect.left)/rect.width;
-    const idx=points.reduce((best,p,i)=>Math.abs(toX(p)-f)<Math.abs(toX(points[best])-f)?i:best,0);setPosition(idx);
+    return points.reduce((best,p,i)=>Math.abs(toX(p)-f)<Math.abs(toX(points[best])-f)?i:best,0);
   };
   return <section aria-label={series.label+" historical chart"}>
     <div className="fin-chart-heading"><div><span className="fin-eyeline">{series.source} · {series.asOf} {series.stale?" · older observation":""}</span>
       <h3>{series.label}</h3><div className="fin-quote"><strong>{number(series.points.at(-1)!.value,series.precision)}</strong><span>{series.unit}</span><b>{changeLabel(series)}</b></div>
       </div><div className="fin-picks" role="group" aria-label="Chart history length">{[[15,"15 obs."],[30,"30 obs."],[0,"All"]].map(([n,label])=>
-        <button key={n} onClick={()=>{setRange(Number(n));setPosition(null);}} aria-pressed={n===range}>{label}</button>)}</div></div>
+        <button key={n} onClick={()=>{setRange(Number(n));setPosition(null);setHovered(null);}} aria-pressed={n===range}>{label}</button>)}</div></div>
     <div className="fin-plotrow"><div className="fin-y" aria-hidden="true"><span>{number(top,series.precision)}</span><span>{number((top+bottom)/2,series.precision)}</span><span>{number(bottom,series.precision)}</span></div>
       <svg viewBox="0 0 100 100" preserveAspectRatio="none" role="img" aria-label={series.label+" from "+points[0].date+" to "+points.at(-1)!.date}
-        onPointerMove={e=>{if(e.pointerType==="mouse")inspect(e.currentTarget,e.clientX);}} onClick={e=>inspect(e.currentTarget,e.clientX)} onPointerLeave={()=>setPosition(null)}>
+        onPointerMove={e=>{if(e.pointerType==="mouse")setHovered(nearest(e.currentTarget,e.clientX));}} onClick={e=>setPosition(nearest(e.currentTarget,e.clientX))} onPointerLeave={()=>setHovered(null)}>
         <defs><linearGradient id={"fin"+chartId} x1="0" y1="0" x2="0" y2="1"><stop stopColor="#68c6b4" stopOpacity=".30"/><stop offset="1" stopColor="#68c6b4" stopOpacity=".01"/></linearGradient></defs>
         {[0,25,50,75,100].map(y=><line key={y} x1="0" x2="100" y1={y} y2={y} className="fin-gridline" vectorEffect="non-scaling-stroke"/>)}
         <polygon points={toX(points[0])+",100 "+coords+" "+toX(points.at(-1)!)+",100"} fill={"url(#fin"+chartId+")"}/>
@@ -69,7 +70,7 @@ function ReferenceChart({series,onAsk}:{series:Series;onAsk:Ask}) {
       </svg></div>
     <div className="fin-axis" aria-hidden="true"><span>{dateLabel(points[0].date)}</span><span>{dateLabel(points.at(-1)!.date)}</span></div>
     <label className="fin-reader"><span>Inspect observation</span><input aria-label={"Inspect "+series.label+" observation"} type="range" min="0" max={points.length-1} value={at} disabled={points.length<2}
-      onChange={e=>setPosition(Number(e.target.value))}/><output>{dateLabel(selected.date)} · {number(selected.value,series.precision)} {series.unit}</output></label>
+      onChange={e=>{setHovered(null);setPosition(Number(e.target.value));}}/><output>{dateLabel(selected.date)} · {number(selected.value,series.precision)} {series.unit}</output></label>
     <p className="fin-reading">{series.narrative}</p>
     <div className="fin-foot"><WebLink href={series.sourceUrl}>Source observations</WebLink><button className="fin-ask" onClick={()=>onAsk("Explain the latest "+series.label+" observation, its measured change, and what evidence would help interpret it.",{kind:"finance",symbol:series.symbol,label:series.label})}><MessageCircle size={15}/>Ask about {series.symbol}</button></div>
     {series.symbol==="SOFR"&&<details className="fin-attrib"><summary>Source attribution and terms</summary><p>SOFR is subject to the <a href={series.termsUrl} target="_blank" rel="noreferrer">Terms of Use posted at newyorkfed.org</a>. The New York Fed is not responsible for publication of SOFR by EOTW, does not sanction or endorse any particular republication, and has no liability for your use. Comparison calculations are by EOTW.</p></details>}
@@ -138,3 +139,4 @@ export default function Finance({onAsk}:{onAsk:Ask}) {
     <footer className="fin-cadence"><ExternalLink size={14} aria-hidden="true"/><span>SOFR and ECB reference rates are published on business days. EOTW checks the reference feeds every five minutes while this page is visible.</span></footer>
   </div>;
 }
+
