@@ -25,6 +25,21 @@ try {
   await freshness.waitFor();
   await page.locator(".sv-priority-card h3 a").first().waitFor();
   const initial = await freshness.getAttribute("datetime");
+  const beforeCards=await page.locator(".sv-priority-card h3 a").evaluateAll(links=>links.map(l=>({href:l.getAttribute("href"),title:l.textContent})));
+  const storyTab=await browser.newPage();
+  const story="/story/2026-11-19-10133cd5512447b271b9";
+  await storyTab.goto(origin+story);
+  const investigation=storyTab.locator("details.event-investigation").first();
+  await investigation.locator("summary").click();
+  await investigation.getByRole("heading",{name:"What the sources establish"}).waitFor({timeout:30000});
+  const productionAssessment={story,mode:await investigation.locator(".investigation-mode strong").innerText(),
+    headings:await investigation.locator("h4").allTextContents(),labels:await investigation.locator(".hypothesis-origin").allTextContents(),
+    citations:[...new Set(await investigation.locator(".assessment-cite").evaluateAll(links=>links.map(l=>l.getAttribute("href"))))]};
+  assert.equal(productionAssessment.mode,"AI-assisted assessment");
+  assert(productionAssessment.citations.some(url=>url.startsWith("https://api.weather.gov/alerts/")));
+  assert(productionAssessment.headings.includes("What remains unknown"));
+  await storyTab.close();
+
   const timeOrigin = await page.evaluate(() => performance.timeOrigin);
   const script = await page.locator("script[type=module][src]").getAttribute("src");
   console.log("Waiting for the open Hot 24 page to advance from " + initial);
@@ -56,7 +71,9 @@ try {
     assert(result.events.some(e => e.id === checked.exampleArchivedId || e.bulletins?.some(b=>b.id === checked.exampleArchivedId)));
     archived = checked.exampleArchivedId;
   }
-  const evidence = { verifiedAt:new Date().toISOString(),page:origin+"/trending",before:initial,after:updated,
+  const afterCards=await page.locator(".sv-priority-card h3 a").evaluateAll(links=>links.map(l=>({href:l.getAttribute("href"),title:l.textContent})));
+  const changedCards=[...new Set([...beforeCards,...afterCards].filter(c=>!beforeCards.some(b=>b.href===c.href && b.title===c.title) || !afterCards.some(a=>a.href===c.href && a.title===c.title)).map(c=>c.href))];
+  const evidence = {changedCards,productionAssessment,verifiedAt:new Date().toISOString(),page:origin+"/trending",before:initial,after:updated,
     documentNavigations:mainNavigations,unchangedScript:script,rankedReports:seen.at(-1).count,
     visibleReport:firstId,checkedArchivedRecord:archived,scheduledRuns:recent.slice(0,2) };
   await mkdir("verification",{recursive:true});
